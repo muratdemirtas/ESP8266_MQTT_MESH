@@ -21,7 +21,7 @@ void ICACHE_FLASH_ATTR topology::printMsg(debugTypes types, bool newline, const 
 			Serial.println();
 
 		va_end(args);
-
+		
 	}
 }
 
