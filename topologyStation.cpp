@@ -57,13 +57,8 @@ void ICACHE_FLASH_ATTR topology::scanApsCallback(void *arg, STATUS status) {
 	staticF->printMsg(OS, true, "");
 
 	///Print all infos about networks
-	staticF->printMsg(OS,true, "FOUND %d MESH AP with this Prefix = %s", staticF->m_meshAPs.size(), staticF->m_meshPrefix.c_str());
-	staticF->printMsg(OS, true, "FOUND %d MQTT AP with this Prefix = %s", staticF->m_mqttAPs.size(), staticF->m_mqttPrefix.c_str());
-
-	//For Dynamic topology network, i added timer for research APs.
-	//Setup timer interrupting service function and interval.
-	os_timer_setfn(&staticF->m_searchTimer, searchTimerCallback, NULL);   
-	os_timer_arm(&staticF->m_searchTimer, SEARCHTM_INTERVAL, 0 );
+	staticF->printMsg(OS,true, "FOUND %d MESH AP with F Prefix = %s", staticF->m_meshAPs.size(), staticF->m_meshPrefix.c_str());
+	staticF->printMsg(OS, true, "FOUND %d MQTT AP with F Prefix = %s", staticF->m_mqttAPs.size(), staticF->m_mqttPrefix.c_str());
 
 	//Compute best Access point
 	staticF->connectToBestAp();
@@ -113,8 +108,14 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 	}
 
 	//Check mesh Ap list is empty
-	if (staticF->m_meshAPs.empty() ) {
+	if (staticF->m_meshAPs.empty()) {
 		printMsg(CONNECTION, true, "DIDNT FIND ANY MESH NETWORK.");
+
+		//For Dynamic topology network, i added timer for research APs.
+		//Setup timer interrupting service function and interval.
+		os_timer_setfn(&staticF->m_searchTimer, searchTimerCallback, NULL);
+		os_timer_arm(&staticF->m_searchTimer, SEARCHTM_INTERVAL, 0);
+		return false;
 	}
 
 	//Check mqtt Ap list is empty
@@ -122,49 +123,61 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 		printMsg(CONNECTION, true, "DIDNT FIND ANY MQTT NETWORK.");
 	}
 
-	//If spotted mesh APs
-	if (!(staticF->m_meshAPs.empty())) {
+	m_networkType = FOUND_MESH;
+	
+	if (!(staticF->m_meshAPs.empty()) && !(staticF->m_mqttAPs.empty())) {
 		SimpleList<bss_info>::iterator bestMesh = staticF->m_meshAPs.begin();
 		SimpleList<bss_info>::iterator i = staticF->m_meshAPs.begin();
 		while (i != staticF->m_meshAPs.end()) {
 			if (i->rssi > bestMesh->rssi) {
 				bestMesh = i;
 			}
-			++i;
+			++i; 
 		}
-		printMsg(OS,true, "BEST MESH AP IS: %s", (char*)bestMesh->ssid);
-	}
-
-	//If spotted mqtt APs
-	if (!(staticF->m_mqttAPs.empty())) {
+	
 		SimpleList<bss_info>::iterator bestMqtt = staticF->m_mqttAPs.begin();
-		SimpleList<bss_info>::iterator i = staticF->m_mqttAPs.begin();
-		while (i != staticF->m_mqttAPs.end()) {
-			if (i->rssi > bestMqtt->rssi) {
-				bestMqtt = i;
+		SimpleList<bss_info>::iterator k = staticF->m_mqttAPs.begin();
+		while (k != staticF->m_mqttAPs.end()) {
+			if (k->rssi > bestMqtt->rssi) {
+				bestMqtt = k;
 			}
-			++i;
+			++k;
 		}
+
+		printMsg(OS, true, "BEST MESH AP IS: %s", (char*)bestMesh->ssid);
 		printMsg(OS, true, "BEST MQTT AP IS: %s", (char*)bestMqtt->ssid);
+		printMsg(OS, true, "");
+
+		if (bestMqtt->rssi > bestMesh->rssi) {
+			m_networkType = FOUND_MQTT;
+			printMsg(CONNECTION,true, "CONNECTING TO MQTT AP:%s", (char*)bestMqtt->ssid);
+			struct station_config stationConf;
+			stationConf.bssid_set = 0;
+			memcpy(&stationConf.ssid, bestMqtt->ssid, 32);
+			memcpy(&stationConf.password, m_mqttPassword.c_str(), 64);
+			wifi_station_set_config(&stationConf);
+			wifi_station_connect();
+
+			m_mqttAPs.erase(bestMqtt);    
+			return true;
+		}
+		
+		else {
+			printMsg(CONNECTION,true,"CONNECTING TO MESH AP:%s", (char*)bestMesh->ssid);
+			struct station_config stationConf;
+			stationConf.bssid_set = 0;
+			memcpy(&stationConf.ssid, bestMesh->ssid, 32);
+			memcpy(&stationConf.password, m_meshPassword.c_str(), 64);
+			wifi_station_set_config(&stationConf);
+			wifi_station_connect();
+
+			m_meshAPs.erase(bestMesh);   
+			return true;
+		}
+
 	}
+	
 
-
-
-	/*
-
-	// connect to bestAP
-	printMsg(CONNECTION, "connectToBestAP(): Best AP is %s<---\n", (char*)bestAP->ssid);
-	struct station_config stationConf;
-	stationConf.bssid_set = 0;
-	memcpy(&stationConf.ssid, bestAP->ssid, 32);
-	memcpy(&stationConf.password, _meshPassword.c_str(), 64);
-	wifi_station_set_config(&stationConf);
-	wifi_station_connect();
-
-	_meshAPs.erase(bestAP);    // drop bestAP from mesh list, so if doesn't work out, we can try the next one
-	return true;
-
-	*/
 
 }
 
@@ -189,4 +202,41 @@ meshConnectionType* ICACHE_FLASH_ATTR topology::findConnection(uint32_t chipId) 
 	}
 	printMsg(CONNECTION,true, "DIDNT FIND CONNECTION TO: %d \n", chipId);
 	return NULL;
+}
+
+
+void ICACHE_FLASH_ATTR topology::wifiEventCb(System_Event_t *event) {
+	switch (event->event) {
+	case EVENT_STAMODE_CONNECTED:
+		staticF->printMsg(CONNECTION,true, "WIFI STATION CONNECTED TO:%s", (char*)event->event_info.connected.ssid);
+		break;
+	case EVENT_STAMODE_DISCONNECTED:
+		staticF->printMsg(CONNECTION, true, "WIFI STATION DISCONNECTED FROM:%s", (char*)event->event_info.disconnected.ssid);
+		staticF->connectToBestAp();
+		break;
+	case EVENT_STAMODE_AUTHMODE_CHANGE:
+		staticF->printMsg(CONNECTION, true, "FOR STATION MODE, AP SECURITY CHANGED, FROM:%s", (char*)event->event_info.disconnected.ssid);
+		break;
+	case EVENT_STAMODE_GOT_IP:
+		staticF->printMsg(CONNECTION, true, "WIFI STATION GOT IP.");
+	//	staticF->tcpConnect();
+		break;
+
+	case EVENT_SOFTAPMODE_STACONNECTED:
+		staticF->printMsg(CONNECTION, true, "WIFI SOFT AP CONNECTED.");
+		break;
+
+	case EVENT_SOFTAPMODE_STADISCONNECTED:
+		staticF->printMsg(CONNECTION, true, "WIFI SOFT AP DISCONNECTED. MAC ADRESS IS:" );
+		break;
+	case EVENT_STAMODE_DHCP_TIMEOUT:
+		staticF->printMsg(CONNECTION, true, "ERROR OCCURRED WHILE STA TAKING IP(DHCP TIMEOUT)."); 
+		break;
+	case EVENT_SOFTAPMODE_PROBEREQRECVED:
+		// printMsg( GENERAL, "Event: EVENT_SOFTAPMODE_PROBEREQRECVED\n");  // dont need to know about every probe request
+		break;
+	default:
+		staticF->printMsg(ERROR, true, "UNKNOW WIFI ERROR: %d\n", event->event);
+		break;
+	}
 }

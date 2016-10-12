@@ -1,9 +1,10 @@
+
 #include <SimpleList.h>
 #include "topology.h"
 #define UART_STATUS true
 topology sys;
 
-#define MESH_PREFIX "AESIR-"
+#define MESH_PREFIX "AESIR"
 #define MESH_PASSWORD  "1234567890"
 #define MESH_PORT   8888
 
@@ -19,7 +20,7 @@ void setup() {
 		while (!Serial) {}
 	}
 
-	sys.setDebug(BOOT | OS | MQTT_STATUS | MESH_STATUS | COMMUNICATION );
+	sys.setDebug(BOOT | OS | MQTT_STATUS | MESH_STATUS | COMMUNICATION |ERROR );
 	sys.bootMsg();
 	sys.setupMqtt(MQTT_PREFIX, MQTT_PASSWORD, MQTT_SERVER, MQTT_PORT);
 	sys.setupMesh(MESH_PREFIX, MESH_PASSWORD, MESH_PORT);

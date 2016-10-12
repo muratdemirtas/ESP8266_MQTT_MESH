@@ -7,6 +7,18 @@ topology* staticF;
 void ICACHE_FLASH_ATTR topology::startSys(void) {
 	startScanAps();
 	staticF = this;
+
+
+	wifi_station_set_auto_connect(0);
+	wifi_station_disconnect();
+
+	if (wifi_station_get_connect_status() != STATION_IDLE) {
+		printMsg(ERROR, true,"CANNOT CHANGE WIFI TO IDLE, CURRENT STATUS:%d", wifi_station_get_connect_status());	
+	}
+
+
+	wifi_set_event_handler_cb(wifiEventCb);
+	wifi_softap_dhcps_stop();
 }
 
 //Setup configs for Mqtt Access Points

@@ -74,11 +74,22 @@ public:
 	meshConnectionType* findConnection(uint32_t chipId);
 	uint32_t getMyID(void);
 
+
+	void	connectTcpServer(void);
+
 	SimpleList<meshConnectionType>  m_connections;
 	SimpleList<bss_info>            m_mqttAPs;
 	SimpleList<bss_info>            m_meshAPs;
 	os_timer_t				m_searchTimer;
 	networkType	m_networkType;
+	static void wifiEventCb(System_Event_t *event);
+
+	espconn     m_meshServerConn;
+	esp_tcp     m_meshServerTcp;
+
+	espconn     m_stationConn;
+	esp_tcp     m_stationTcp;
+
 private:
 
 
