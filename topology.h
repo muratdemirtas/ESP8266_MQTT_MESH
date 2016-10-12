@@ -15,6 +15,9 @@ extern "C" {
 #include "espconn.h"
 }
 
+#include <SimpleList.h>
+
+
 //Define debug types for serial debugging.
 enum debugTypes {
 	ERROR = 0,
@@ -27,6 +30,13 @@ enum debugTypes {
 	APP = 7
 };
 
+enum scanStatusTypes {
+	ON_IDLE = 0,
+	ON_SEARCHING = 1
+};
+
+
+
 //Our topology class.
 class topology
 {
@@ -34,9 +44,29 @@ public:
 	void setDebug(int types);
 	void printMsg(debugTypes type,bool newline,const char* format ...);
 	void bootMsg(void);
+	void startSys(void);
+	void startAp(String mesh_pre, String mesh_passwd, uint16_t mesh_port);
+	void startScanAps(void);
+	
+	static void scanApsCallback(void *arg, STATUS status);
+
 
 	uint32_t getMyID(void);
+
+	SimpleList<bss_info>            m_mqttAPs;
+	SimpleList<bss_info>            m_meshAPs;
+	
 private:
 
+
+	String		m_meshPrefix;
+	String		m_meshPassword;
+	uint16_t	m_meshPort;
+
+	String		m_mqttPrefix;
+	String		m_mqttPassword;
+	uint16_t	m_mqttPort;
+
+	scanStatusTypes			m_scanStatus;
 };
 #endif

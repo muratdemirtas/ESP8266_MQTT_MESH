@@ -33,6 +33,7 @@ void ICACHE_FLASH_ATTR topology::bootMsg() {
 	printMsg(BOOT, true,"CURRENT CPU SPEED: %d MHz", system_get_cpu_freq());
 	printMsg(BOOT, true,"OUR NODE CHIPID : %d", getMyID());
 	delayMicroseconds(500);
+	printMsg(BOOT, true, "");
 }
 
 //Get our unique ESP module chip id.
