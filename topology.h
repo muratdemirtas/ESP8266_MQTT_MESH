@@ -9,17 +9,12 @@
 	#include "WProgram.h"
 #endif
 
-class WiFiClient;
-class PubSubClient;
 
 //Extract Espressif methods for our class.
 extern "C" {
 #include "user_interface.h"
 #include "espconn.h"
 }
-
-#include <ESP8266WiFi.h>
-#include <PubSubClient.h>
 
 #include <SimpleList.h>
 #include <ArduinoJson.h>
@@ -45,7 +40,8 @@ enum scanStatusTypes {
 
 enum networkType {
 	FOUND_MQTT = 0,
-	FOUND_MESH = 1
+	FOUND_MESH = 1,
+	NOTHING = 2
 };
 
 
@@ -108,7 +104,7 @@ public:
 	SimpleList<bss_info>            m_mqttAPs;
 	SimpleList<bss_info>            m_meshAPs;
 	os_timer_t				m_searchTimer;
-	networkType	m_networkType;
+	networkType	m_networkType = NOTHING;
 	static void wifiEventCb(System_Event_t *event);
 
 	espconn     m_meshServerConn;
@@ -116,7 +112,11 @@ public:
 
 	espconn     m_stationConn;
 	esp_tcp     m_stationTcp;
-
+	
+	String		m_mqttPrefix;
+	String		m_mqttPassword;
+	char*		m_mqttServer;
+	uint16_t	m_mqttPort;
 protected :
 	bool                sendMessage(meshConnectionType *conn, uint32_t destId, meshPackageType type, String &msg);
 	bool                sendMessage(uint32_t destId, meshPackageType type, String &msg);
@@ -141,18 +141,14 @@ private:
 	String		m_meshPassword;
 	uint16_t	m_meshPort;
 
-	String		m_mqttPrefix;
-	String		m_mqttPassword;
-	char*		m_mqttServer;
-	uint16_t	m_mqttPort;
+
 	
 	scanStatusTypes			m_scanStatus;
 
 	uint32_t    m_myChipID;
 	String		m_mySSID;
 
-	WiFiClient   espClient;
-	PubSubClient client;
+
 
 };
 #endif

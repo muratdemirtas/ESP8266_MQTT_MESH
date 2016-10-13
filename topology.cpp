@@ -1,6 +1,4 @@
 #include "topology.h"
-
-
 topology* staticF;
 
 //Start topology system
@@ -32,4 +30,5 @@ void ICACHE_FLASH_ATTR topology::setupMqtt(String mqttPrefix, String mqttPasswor
 	printMsg(MQTT_STATUS, true, "SETTING UP MQTT CONFIG, PREFIX:%s, PASSWORD:%s, Server:%s, PORT:%d", mqttPrefix.c_str(), mqttPassword.c_str(), mqtt_server, mqtt_port);
 	
 }
+
 

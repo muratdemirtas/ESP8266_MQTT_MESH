@@ -1,9 +1,10 @@
 #include "topology.h"
+#include "mqtt.h"
 static void(*receivedCallback)(uint32_t from, String &msg);
 static void(*newConnectionCallback)(bool adopt);
 
 extern topology* staticF;
-
+mqtt* staticM;
 void ICACHE_FLASH_ATTR topology::connectTcpServer(void) {
 
 	if (m_networkType == FOUND_MESH) {
@@ -41,7 +42,6 @@ void ICACHE_FLASH_ATTR topology::connectTcpServer(void) {
 	}
 
 	else if (m_networkType == FOUND_MQTT) {
-		mqttBegin();
 		
 	}
 
