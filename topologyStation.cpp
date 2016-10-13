@@ -123,7 +123,7 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 		printMsg(CONNECTION, true, "DIDNT FIND ANY MQTT NETWORK.");
 	}
 
-	m_networkType = FOUND_MESH;
+	
 	
 	if (!(staticF->m_meshAPs.empty()) && !(staticF->m_mqttAPs.empty())) {
 		SimpleList<bss_info>::iterator bestMesh = staticF->m_meshAPs.begin();
@@ -148,7 +148,8 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 		printMsg(OS, true, "BEST MQTT AP IS: %s", (char*)bestMqtt->ssid);
 		printMsg(OS, true, "");
 
-		if (bestMqtt->rssi > bestMesh->rssi) {
+		if (bestMqtt->rssi < bestMesh->rssi) {
+
 			m_networkType = FOUND_MQTT;
 			printMsg(CONNECTION,true, "CONNECTING TO MQTT AP:%s", (char*)bestMqtt->ssid);
 			struct station_config stationConf;
@@ -163,6 +164,7 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 		}
 		
 		else {
+			m_networkType = FOUND_MESH;
 			printMsg(CONNECTION,true,"CONNECTING TO MESH AP:%s", (char*)bestMesh->ssid);
 			struct station_config stationConf;
 			stationConf.bssid_set = 0;
@@ -174,16 +176,8 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 			m_meshAPs.erase(bestMesh);   
 			return true;
 		}
-
 	}
-	
-
-
 }
-
-
-
-
 
 void ICACHE_FLASH_ATTR topology::wifiEventCb(System_Event_t *event) {
 	switch (event->event) {
@@ -199,7 +193,7 @@ void ICACHE_FLASH_ATTR topology::wifiEventCb(System_Event_t *event) {
 		break;
 	case EVENT_STAMODE_GOT_IP:
 		staticF->printMsg(CONNECTION, true, "WIFI STATION GOT IP.");
-	//	staticF->tcpConnect();
+		staticF->connectTcpServer();
 		break;
 
 	case EVENT_SOFTAPMODE_STACONNECTED:
