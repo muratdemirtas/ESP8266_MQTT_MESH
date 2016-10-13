@@ -38,5 +38,6 @@ void ICACHE_FLASH_ATTR topology::bootMsg() {
 
 //Get our unique ESP module chip id.
 uint32_t ICACHE_FLASH_ATTR topology::getMyID() {
+	m_myChipID = system_get_chip_id();
 	return system_get_chip_id();
 }

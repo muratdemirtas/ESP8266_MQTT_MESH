@@ -16,8 +16,9 @@ extern "C" {
 }
 
 #include <SimpleList.h>
-
+#include <ArduinoJson.h>
 #define SEARCHTM_INTERVAL 5000
+#define JSON_BUFSIZE      500
 
 //Define debug types for serial debugging.
 enum debugTypes {
@@ -41,6 +42,13 @@ enum networkType {
 	FOUND_MESH = 1
 };
 
+
+enum meshPackageType {
+	DROP = 0,
+	BROADCAST = 1,  
+	SINGLE = 2,   
+	MQTT = 3
+};
 
 struct meshConnectionType {
 	espconn             *esp_conn;
@@ -69,12 +77,21 @@ public:
 	void startAp(String mesh_pre, String mesh_passwd, uint16_t mesh_port);
 	void startScanAps(void);
 	bool connectToBestAp(void);
+
+
 	static void scanApsCallback(void *arg, STATUS status);
 	static void searchTimerCallback(void *arg);
 	meshConnectionType* findConnection(uint32_t chipId);
 	uint32_t getMyID(void);
 
+	bool                sendSingle(uint32_t &targetID, String &message);
+	bool                sendBroadcast(String &message);
 
+	void                setReceiveCallback(void(*onReceive)(uint32_t from, String &msg));
+	void                setNewConnectionCallback(void(*onNewConnection)(bool adopt));
+
+  
+	
 	void	connectTcpServer(void);
 
 	SimpleList<meshConnectionType>  m_connections;
@@ -90,6 +107,24 @@ public:
 	espconn     m_stationConn;
 	esp_tcp     m_stationTcp;
 
+protected :
+	bool                sendMessage(meshConnectionType *conn, uint32_t destId, meshPackageType type, String &msg);
+	bool                sendMessage(uint32_t destId, meshPackageType type, String &msg);
+	bool                broadcastMessage(uint32_t fromId, meshPackageType type, String &msg, meshConnectionType *exclude = NULL);
+
+	bool sendPackage(meshConnectionType *connection, String &package);
+	String buildMeshPackage(uint32_t destId, meshPackageType type, String &msg);
+
+	void    tcpServerInit(espconn &serverConn, esp_tcp &serverTcp, espconn_connect_callback connectCb, uint32 port);
+
+	meshConnectionType* findConnection(espconn *conn);
+
+	static void meshConnectedCb(void *arg);
+	static void meshSentCb(void *arg);
+	static void meshRecvCb(void *arg, char *data, unsigned short length);
+	static void meshDisconCb(void *arg);
+	static void meshReconCb(void *arg, sint8 err);
+
 private:
 
 
@@ -103,7 +138,9 @@ private:
 	uint16_t	m_mqttPort;
 	
 	scanStatusTypes			m_scanStatus;
-	
+
+	uint32_t    m_myChipID;
+	String		m_mySSID;
 
 };
 #endif

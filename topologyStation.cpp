@@ -182,27 +182,7 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 }
 
 
-meshConnectionType* ICACHE_FLASH_ATTR topology::findConnection(uint32_t chipId) {
 
-	SimpleList<meshConnectionType>::iterator connection = m_connections.begin();
-	while (connection != m_connections.end()) {
-
-		if (connection->chipId == chipId) {  // check direct connections
-			printMsg(COMMUNICATION,true, "FOUND DIRECT CONNECTION.");
-			return connection;
-		}
-
-		String chipId2Str(chipId);
-		if (connection->subConnections.indexOf(chipId2Str) != -1) { // check sub-connections
-			printMsg(COMMUNICATION,true, "FOUND SUB CONNECTION.");
-			return connection;
-		}
-
-		connection++;
-	}
-	printMsg(CONNECTION,true, "DIDNT FIND CONNECTION TO: %d \n", chipId);
-	return NULL;
-}
 
 
 void ICACHE_FLASH_ATTR topology::wifiEventCb(System_Event_t *event) {
