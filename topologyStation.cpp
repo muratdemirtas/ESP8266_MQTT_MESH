@@ -124,6 +124,11 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 		}
 	}
 
+	if (staticF->m_meshAPs.empty() && staticF->m_mqttAPs.empty()) {
+		printMsg(WIFI, true, "Operating System Dynamic ISR():: DIDNT FIND ANY AP. RESCANNING.");
+		return false;
+	}
+
 	if (m_ISR_CHECK == true) {
 
 		if (FOUND_MQTT) {
@@ -136,22 +141,17 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 				++k;
 
 				if (m_ConnectedSSID == (char*)bestMqtt->ssid) {
-					Serial.println("BAGLANTI KOPARILMAYACAK");
 					m_ISR_CHECK = false;
-					wifi_station_disconnect();
-					printMsg(OS, true, "Operating System Dynamic ISR():: SCAN AP NETWORKS STARTED.");
-					return false;
+					return true;
 				}
 
 				else {
-					Serial.println("BAGLANTI KOPARILACAK");
-				
+					printMsg(WIFI, true, "Operating System Dynamic ISR():: Found New Strong MQTT AP");
 					m_ISR_CHECK = false;
+					wifi_station_disconnect();
 					return false;
 				}
 			}
-
-
 
 		}
 
@@ -168,28 +168,18 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 
 
 			if (m_ConnectedSSID == (char*)bestMesh->ssid) {
-				Serial.println("MESH BAGLANTI KOPARILMAYACAK");
-				m_ISR_CHECK = false;
-				wifi_station_disconnect();
-
-				printMsg(OS, true, "Operating System Dynamic ISR():: SCAN AP NETWORKS STARTED.");
-
-			
+				m_ISR_CHECK = true;
 				return false;
 			}
 
 			else {
-				Serial.println("MESH BAGLANTI KOPARILACAK");
-				//disconnect this.
+				printMsg(WIFI, true, "Operating System Dynamic ISR():: Found New Strong MESH AP");
+				wifi_station_disconnect();
 				m_ISR_CHECK = false;
 				return false;
 			}
 		}
-
-		
-
 	}
-
 
 	//If Wi-Fi hardware not ready for connecting (error, connected or connecting)??, then exit.
 	uint8 statusCode = wifi_station_get_connect_status();
