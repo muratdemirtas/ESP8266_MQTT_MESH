@@ -16,11 +16,13 @@ extern "C" {
 #include "espconn.h"
 }
 
+
+
 #include <SimpleList.h>
 #include <ArduinoJson.h>
 #define SEARCHTM_INTERVAL 5000
 #define JSON_BUFSIZE      500
-
+#define NODE_TIMEOUT        3000000  
 //Define debug types for serial debugging.
 enum debugTypes {
 	ERROR = 0,
@@ -30,7 +32,9 @@ enum debugTypes {
 	CONNECTION = 4,
 	COMMUNICATION = 5,
 	OS = 6,
-	APP = 7
+	APP = 7,
+	SYNC = 8,
+	WIFI = 9
 };
 
 enum scanStatusTypes {
@@ -47,10 +51,19 @@ enum networkType {
 
 enum meshPackageType {
 	DROP = 0,
-	BROADCAST = 1,  
-	SINGLE = 2,   
-	MQTT = 3
+	BROADCAST = 1,
+	SINGLE = 2,
+	MQTT = 3,
+	NODE_SYNC_REQUEST = 4,
+	NODE_SYNC_REPLY = 5
 };
+enum syncStatusType {
+	NEEDED = 0,
+	REQUESTED = 1,
+	IN_PROGRESS = 2,
+	COMPLETE = 3
+};
+
 
 struct meshConnectionType {
 	espconn             *esp_conn;
@@ -62,7 +75,10 @@ struct meshConnectionType {
 	uint32_t            lastTimeSync = 0;
 	bool                sendReady = true;
 	SimpleList<String>  sendQueue;
+	syncStatusType      nodeSyncStatus = NEEDED;
 };
+
+
 
 
 //Our topology class.
@@ -82,21 +98,25 @@ public:
 	void startAp(String mesh_pre, String mesh_passwd, uint16_t mesh_port);
 	void startScanAps(void);
 	bool connectToBestAp(void);
-	void mqttBegin(void);
 
+	static	String	mactostr(uint8* bssid);
+
+	void mqttBegin(void);
+	meshConnectionType* closeConnection(meshConnectionType *conn);
+	String              subConnectionJson(meshConnectionType *exclude);
 	static void scanApsCallback(void *arg, STATUS status);
 	static void searchTimerCallback(void *arg);
 	meshConnectionType* findConnection(uint32_t chipId);
 	uint32_t getMyID(void);
-
+	uint16_t            connectionCount(meshConnectionType *exclude = NULL);
 	bool                sendSingle(uint32_t &targetID, String &message);
 	bool                sendBroadcast(String &message);
-
+	uint16_t            jsonSubConnCount(String& subConns);
 	void                setReceiveCallback(void(*onReceive)(uint32_t from, String &msg));
 	void                setNewConnectionCallback(void(*onNewConnection)(bool adopt));
-
+	void manageConnections(void);
   
-
+	uint32_t getNodeTime(void);
 
 	void	connectTcpServer(void);
 
@@ -134,9 +154,10 @@ protected :
 	static void meshRecvCb(void *arg, char *data, unsigned short length);
 	static void meshDisconCb(void *arg);
 	static void meshReconCb(void *arg, sint8 err);
-
+	void                startNodeSync(meshConnectionType *conn);
+	void                handleNodeSync(meshConnectionType *conn, JsonObject& root);
 private:
-
+	uint32_t    _chipId;
 	String		m_meshPrefix;
 	String		m_meshPassword;
 	uint16_t	m_meshPort;

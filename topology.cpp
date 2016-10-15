@@ -1,9 +1,14 @@
 #include "topology.h"
 topology* staticF;
 
+
+static void(*receivedCallback)(uint32_t from, String &msg);
+static void(*newConnectionCallback)(bool adopt);
+
+
 //Start topology system
 void ICACHE_FLASH_ATTR topology::startSys(void) {
-	startScanAps();
+	
 	staticF = this;
 
 
@@ -17,6 +22,7 @@ void ICACHE_FLASH_ATTR topology::startSys(void) {
 
 	wifi_set_event_handler_cb(wifiEventCb);
 	wifi_softap_dhcps_stop();
+	startScanAps();
 }
 
 //Setup configs for Mqtt Access Points
@@ -30,5 +36,4 @@ void ICACHE_FLASH_ATTR topology::setupMqtt(String mqttPrefix, String mqttPasswor
 	printMsg(MQTT_STATUS, true, "SETTING UP MQTT CONFIG, PREFIX:%s, PASSWORD:%s, Server:%s, PORT:%d", mqttPrefix.c_str(), mqttPassword.c_str(), mqtt_server, mqtt_port);
 	
 }
-
 

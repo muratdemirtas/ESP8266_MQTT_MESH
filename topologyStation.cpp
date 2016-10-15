@@ -1,25 +1,28 @@
-#include "topology.h"
+#include "topology.h"  //our class and methods.
 
-
-extern topology* staticF;
+extern topology* staticF;  //for using our topology methods in static callback functions
 
 //Scan all AP's with mqtt and mesh metworks in startup
 void ICACHE_FLASH_ATTR topology::startScanAps(void) {
 
-		printMsg(OS, true, "WIFI: AP SCAN STARTING.");
-		delayMicroseconds(100); 
+	delayMicroseconds(100);        //for RF hardware stability
 
+    //check wifi scan.
 	if (m_scanStatus != ON_IDLE)
 		return;
 
-	if (wifi_station_scan(NULL, scanApsCallback)) 
-			printMsg(OS, true, "WIFI: AP SCAN STARTED.");
+	//Scan wifi access points without filters and callback of scan scanAps 
+	if (wifi_station_scan(NULL, scanApsCallback)) {
+		printMsg(WIFI, true, "WIFI: Access Point Scan is Starting.");
+		m_scanStatus = ON_SEARCHING;
+	}
 	
+	//Wi-Fi hardware error or what?
 	else {
-		printMsg(ERROR, true, "WIFI: HARDWARE IS NOT IDLE OR BUSY?.");
+		printMsg(ERROR, true, "WIFI: HARDWARE ERROR?.");
 		return;
 	}
-	m_scanStatus = ON_SEARCHING;
+
 	return;
 
 }
@@ -27,42 +30,56 @@ void ICACHE_FLASH_ATTR topology::startScanAps(void) {
 //Scan finished and all arguments coming from wifi_station_scan function.
 void ICACHE_FLASH_ATTR topology::scanApsCallback(void *arg, STATUS status) {
 
-	staticF->printMsg(OS, true, "WIFI: AP SCAN FINISHED.");
+	//Set scan status to idle for new scan.
 	staticF->m_scanStatus = ON_IDLE;
 
-    //Erase all last scanned AP's from ESP8266 memory.
+	//Erase all last scanned AP's from ESP8266 memory.
 	staticF->m_meshAPs.clear();
 	staticF->m_mqttAPs.clear();
+
+	staticF->printMsg(WIFI, true, "WIFI: Scan Finished, Access Points:");
 
 	char ssid[32]; 
 	bss_info  *bssInfo = (bss_info *)arg;   //all *arg registered to bssinfo simple list
 
-	//Print all scanned Access Points in serial.
+	//Print all scanned Access Points from list to serial.
 	while (bssInfo != NULL) {
 
-		staticF->printMsg(OS, true,"\tFOUND SSID: %s, RSSI: %d dB", (char*)bssInfo->ssid, (int16_t)bssInfo->rssi);
+		//Print Access Point info to serial.
+		staticF->printMsg(WIFI, true, "SSID: %s, RSSI: %d dB, MAC: %s ", (char*)bssInfo->ssid, (int16_t)bssInfo->rssi, mactostr(bssInfo->bssid).c_str());
 
-		//Find all mesh and mqtt networks if equal to prefixs and add to simple list.
+		//Find all mesh networks if equal to prefixs and add to simple list.
 		if (strncmp((char*)bssInfo->ssid, staticF->m_meshPrefix.c_str(), staticF->m_meshPrefix.length()) == 0) {
 			staticF->m_meshAPs.push_back(*bssInfo);
 		}
-
+		//Find all mqtt networks if equal to prefixs and add to simple list.
 		if (strncmp((char*)bssInfo->ssid, staticF->m_mqttPrefix.c_str(), staticF->m_mqttPrefix.length()) == 0) {
 			staticF->m_mqttAPs.push_back(*bssInfo);
 		}
 
+		//Continue to other AP's
 		bssInfo = STAILQ_NEXT(bssInfo, next);
 	
 	}
-	staticF->printMsg(OS, true, "");
+	//Same with serial.println();
+	staticF->printMsg(WIFI, true, "");
 
 	///Print all infos about networks
-	staticF->printMsg(OS,true, "FOUND %d MESH AP with F Prefix = %s", staticF->m_meshAPs.size(), staticF->m_meshPrefix.c_str());
-	staticF->printMsg(OS, true, "FOUND %d MQTT AP with F Prefix = %s", staticF->m_mqttAPs.size(), staticF->m_mqttPrefix.c_str());
+	staticF->printMsg(WIFI,true, "Found total: %d MESH AP with Prefix = %s", staticF->m_meshAPs.size(), staticF->m_meshPrefix.c_str());
+	staticF->printMsg(WIFI, true, "Found total: %d MQTT AP with  Prefix = %s", staticF->m_mqttAPs.size(), staticF->m_mqttPrefix.c_str());
 
 	//Compute best Access point
 	staticF->connectToBestAp();
 }
+
+String ICACHE_FLASH_ATTR topology::mactostr(uint8* bssid) {
+	char macstr[18];
+	snprintf(macstr, 18, "%02x:%02x:%02x:%02x:%02x:%02x", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+	return macstr;
+}
+
+
+
 
 //For Dynamic topology network, i added timer for research APs.
 void ICACHE_FLASH_ATTR topology::searchTimerCallback(void *arg) {
@@ -113,14 +130,18 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 
 		//For Dynamic topology network, i added timer for research APs.
 		//Setup timer interrupting service function and interval.
-		os_timer_setfn(&staticF->m_searchTimer, searchTimerCallback, NULL);
-		os_timer_arm(&staticF->m_searchTimer, SEARCHTM_INTERVAL, 0);
-		return false;
+		//os_timer_setfn(&staticF->m_searchTimer, searchTimerCallback, NULL);
+		//os_timer_arm(&staticF->m_searchTimer, SEARCHTM_INTERVAL, 0);
+		//return false;
 	}
 
 	//Check mqtt Ap list is empty
 	if (staticF->m_mqttAPs.empty()) {
+	//	os_timer_setfn(&staticF->m_searchTimer, searchTimerCallback, NULL);
+		//os_timer_arm(&staticF->m_searchTimer, SEARCHTM_INTERVAL, 0);
+
 		printMsg(CONNECTION, true, "DIDNT FIND ANY MQTT NETWORK.");
+	//	return false;
 	}
 
 	
@@ -148,7 +169,7 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 		printMsg(OS, true, "BEST MQTT AP IS: %s", (char*)bestMqtt->ssid);
 		printMsg(OS, true, "");
 
-		if (bestMqtt->rssi < bestMesh->rssi) {
+		if (bestMqtt->rssi > bestMesh->rssi) {
 
 			m_networkType = FOUND_MQTT;
 			printMsg(CONNECTION,true, "CONNECTING TO MQTT AP:%s", (char*)bestMqtt->ssid);
@@ -214,3 +235,5 @@ void ICACHE_FLASH_ATTR topology::wifiEventCb(System_Event_t *event) {
 		break;
 	}
 }
+
+

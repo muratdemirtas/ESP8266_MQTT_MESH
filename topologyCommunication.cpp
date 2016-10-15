@@ -1,10 +1,11 @@
 #include "topology.h"
-#include "mqtt.h"
+
+
 static void(*receivedCallback)(uint32_t from, String &msg);
 static void(*newConnectionCallback)(bool adopt);
 
 extern topology* staticF;
-mqtt* staticM;
+
 void ICACHE_FLASH_ATTR topology::connectTcpServer(void) {
 
 	if (m_networkType == FOUND_MESH) {
@@ -142,13 +143,6 @@ void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned shor
 	return;
 }
 
-void ICACHE_FLASH_ATTR topology::setReceiveCallback(void(*onReceive)(uint32_t from, String &msg)) {
-	receivedCallback = onReceive;
-}
-
-void ICACHE_FLASH_ATTR topology::setNewConnectionCallback(void(*onNewConnection)(bool adopt)) {
-	newConnectionCallback = onNewConnection;
-}
 
 //Find connection for target id.
 void ICACHE_FLASH_ATTR topology::meshSentCb(void *arg) {
@@ -318,3 +312,231 @@ bool ICACHE_FLASH_ATTR topology::sendBroadcast(String &message) {
 	printMsg(COMMUNICATION,true, "SENDING BROADCAST MESSAGE: %s", message.c_str());
 	broadcastMessage(m_myChipID, BROADCAST, message);
 }
+
+
+uint32_t ICACHE_FLASH_ATTR topology::getNodeTime(void) {
+	
+	uint32_t ret = system_get_time();
+	printMsg(SYNC,true, "getNodeTime(): time=%d\n", ret);
+	return ret;
+}
+
+
+
+void ICACHE_FLASH_ATTR topology::startNodeSync(meshConnectionType *conn) {
+	printMsg(SYNC,true,"startNodeSync(): with %u\n", conn->chipId);
+
+	String subs = subConnectionJson(conn);
+	sendMessage(conn, conn->chipId, NODE_SYNC_REQUEST, subs);
+	conn->nodeSyncRequest = getNodeTime();
+	conn->nodeSyncStatus = IN_PROGRESS;
+}
+
+meshConnectionType* ICACHE_FLASH_ATTR topology::closeConnection(meshConnectionType *conn) {
+
+	printMsg(CONNECTION, true, "closeConnection(): conn-chipId=%d\n", conn->chipId);
+	espconn_disconnect(conn->esp_conn);
+	return m_connections.erase(conn);
+}
+
+
+void ICACHE_FLASH_ATTR topology::handleNodeSync(meshConnectionType *conn, JsonObject& root) {
+	printMsg(SYNC,true, "handleNodeSync(): with %u\n", conn->chipId);
+
+	meshPackageType type = (meshPackageType)(int)root["type"];
+	uint32_t        remoteChipId = (uint32_t)root["from"];
+	uint32_t        destId = (uint32_t)root["dest"];
+	bool            reSyncAllSubConnections = false;
+
+	if ((destId == 0) && (findConnection(remoteChipId) != NULL)) {
+		// this is the first NODE_SYNC_REQUEST from a station
+		// is we are already connected drop this connection
+		printMsg(SYNC, true, "handleNodeSync(): Already connected to node %d.  Dropping\n", conn->chipId);
+		closeConnection(conn);
+		return;
+	}
+
+	if (conn->chipId != remoteChipId) {
+		printMsg(SYNC, true, "handleNodeSync(): conn->chipId updated from %d to %d\n", conn->chipId, remoteChipId);
+		conn->chipId = remoteChipId;
+
+	}
+
+	// check to see if subs have changed.
+	String inComingSubs = root["subs"];
+	if (!conn->subConnections.equals(inComingSubs)) {  // change in the network
+		reSyncAllSubConnections = true;
+		conn->subConnections = inComingSubs;
+	}
+
+	switch (type) {
+	case NODE_SYNC_REQUEST:
+	{
+		printMsg(SYNC,true, "handleNodeSync(): valid NODE_SYNC_REQUEST %d sending NODE_SYNC_REPLY\n", conn->chipId);
+		String myOtherSubConnections = subConnectionJson(conn);
+		sendMessage(conn, m_myChipID, NODE_SYNC_REPLY, myOtherSubConnections);
+		break;
+	}
+	case NODE_SYNC_REPLY:
+		printMsg(SYNC,true, "handleNodeSync(): valid NODE_SYNC_REPLY from %d\n", conn->chipId);
+		conn->nodeSyncRequest = 0;  //reset nodeSyncRequest Timer  ????
+		break;
+	default:
+		printMsg(ERROR,true, "handleNodeSync(): weird type? %d\n", type);
+	}
+
+	if (reSyncAllSubConnections == true) {
+		SimpleList<meshConnectionType>::iterator connection = m_connections.begin();
+		while (connection != m_connections.end()) {
+			connection->nodeSyncStatus = NEEDED;
+			connection++;
+		}
+	}
+
+	conn->nodeSyncStatus = COMPLETE;  // mark this connection nodeSync'd
+}
+
+String ICACHE_FLASH_ATTR topology::subConnectionJson(meshConnectionType *exclude) {
+	printMsg(SYNC, true, "subConnectionJson(), exclude=%d\n", exclude->chipId);
+
+	DynamicJsonBuffer jsonBuffer(JSON_BUFSIZE);
+	JsonArray& subArray = jsonBuffer.createArray();
+	if (!subArray.success())
+		printMsg(ERROR, true, "subConnectionJson(): ran out of memory 1");
+
+	SimpleList<meshConnectionType>::iterator sub = m_connections.begin();
+	while (sub != m_connections.end()) {
+		if (sub != exclude && sub->chipId != 0) {  //exclude connection that we are working with & anything too new.
+			JsonObject& subObj = jsonBuffer.createObject();
+			if (!subObj.success())
+				printMsg(ERROR, true, "subConnectionJson(): ran out of memory 2");
+
+			subObj["chipId"] = sub->chipId;
+
+			if (sub->subConnections.length() != 0) {
+				//printMsg( GENERAL, "subConnectionJson(): sub->subConnections=%s\n", sub->subConnections.c_str() );
+
+				JsonArray& subs = jsonBuffer.parseArray(sub->subConnections);
+				if (!subs.success())
+					printMsg(ERROR,true, "subConnectionJson(): ran out of memory 3");
+
+				subObj["subs"] = subs;
+			}
+
+			if (!subArray.add(subObj))
+				printMsg(ERROR, true, "subConnectionJson(): ran out of memory 4");
+		}
+		sub++;
+	}
+
+	String ret;
+	subArray.printTo(ret);
+	printMsg(SYNC, true, "subConnectionJson(): ret=%s\n", ret.c_str());
+	return ret;
+}
+
+
+uint16_t ICACHE_FLASH_ATTR topology::connectionCount(meshConnectionType *exclude) {
+	uint16_t count = 0;
+
+	SimpleList<meshConnectionType>::iterator sub = m_connections.begin();
+	while (sub != m_connections.end()) {
+		if (sub != exclude) {  //exclude this connection in the calc.
+			count += (1 + jsonSubConnCount(sub->subConnections));
+		}
+		sub++;
+	}
+
+	printMsg(SYNC, true, "connectionCount(): count=%d\n", count);
+	return count;
+}
+
+uint16_t ICACHE_FLASH_ATTR topology::jsonSubConnCount(String& subConns) {
+	printMsg(SYNC, true, "jsonSubConnCount(): subConns=%s\n", subConns.c_str());
+
+	uint16_t count = 0;
+
+	if (subConns.length() < 3)
+		return 0;
+
+	DynamicJsonBuffer jsonBuffer(JSON_BUFSIZE);
+	JsonArray& subArray = jsonBuffer.parseArray(subConns);
+
+	if (!subArray.success()) {
+		printMsg(ERROR, true, "subConnCount(): out of memory1\n");
+	}
+
+	String str;
+	for (uint8_t i = 0; i < subArray.size(); i++) {
+		str = subArray.get<String>(i);
+		printMsg(SYNC, true, "jsonSubConnCount(): str=%s\n", str.c_str());
+		JsonObject& obj = jsonBuffer.parseObject(str);
+		if (!obj.success()) {
+			printMsg(ERROR, true, "subConnCount(): out of memory2\n");
+		}
+
+		str = obj.get<String>("subs");
+		count += (1 + jsonSubConnCount(str));
+	}
+
+	printMsg(CONNECTION, true, "jsonSubConnCount(): leaving count=%d\n", count);
+
+	return count;
+}
+
+
+void ICACHE_FLASH_ATTR topology::manageConnections(void) {
+	//printMsg(APP, true, "manageConnections():\n");
+	SimpleList<meshConnectionType>::iterator connection = m_connections.begin();
+	while (connection != m_connections.end()) {
+		if (connection->lastRecieved + NODE_TIMEOUT < getNodeTime()) {
+			printMsg(CONNECTION, true, "manageConnections(): dropping %d NODE_TIMEOUT last=%u node=%u\n", connection->chipId, connection->lastRecieved, getNodeTime());
+
+			connection = closeConnection(connection);
+			continue;
+		}
+
+		if (connection->esp_conn->state == ESPCONN_CLOSE) {
+			printMsg(CONNECTION, true, "manageConnections(): dropping %d ESPCONN_CLOSE\n", connection->chipId);
+			connection = closeConnection(connection);
+			continue;
+		}
+
+		switch (connection->nodeSyncStatus) {
+		case NEEDED:           // start a nodeSync
+			printMsg(SYNC, true, "manageConnections(): start nodeSync with %d\n", connection->chipId);
+			startNodeSync(connection);
+			connection->nodeSyncStatus = IN_PROGRESS;
+
+		case IN_PROGRESS:
+			connection++;
+			continue;
+		}
+
+
+		if (connection->newConnection == true) {  // we should only get here once first nodeSync and timeSync are complete
+
+			connection->newConnection = false;
+
+			connection++;
+			continue;
+		}
+
+
+		uint32_t nodeTime = getNodeTime();
+		if (connection->nodeSyncRequest == 0) { // nodeSync not in progress
+			if ((connection->esp_conn->proto.tcp->local_port == m_meshPort  // we are AP
+				&&
+				connection->lastRecieved + (NODE_TIMEOUT / 2) < nodeTime)
+				||
+				(connection->esp_conn->proto.tcp->local_port != m_meshPort  // we are the STA
+					&&
+					connection->lastRecieved + (NODE_TIMEOUT * 3 / 4) < nodeTime)
+				) {
+				connection->nodeSyncStatus = NEEDED;
+			}
+		}
+		connection++;
+	}
+}
+
