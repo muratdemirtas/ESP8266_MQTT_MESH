@@ -97,7 +97,7 @@ void ICACHE_FLASH_ATTR topology::searchTimerCallback(void *arg) {
 //Select best access point( maybe mesh, maybe mqtt network) 
 bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 	
-	printMsg(WIFI,true, "WIFI: Comparing Best Access Points For Power.");
+	printMsg(OS, true, "WIFI: Comparing Best Access Points For Power.");
 
 	//Check if we have connection with this mesh Ap, erase this Ap.
 	SimpleList<bss_info>::iterator meshap = m_meshAPs.begin();
@@ -125,7 +125,7 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 	}
 
 	if (staticF->m_meshAPs.empty() && staticF->m_mqttAPs.empty()) {
-		printMsg(WIFI, true, "Operating System Dynamic ISR():: DIDNT FIND ANY AP. RESCANNING.");
+		printMsg(OS,  true, "Operating System Dynamic ISR():: DIDNT FIND ANY AP. RESCANNING.");
 		return false;
 	}
 
@@ -142,11 +142,21 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 
 				if (m_ConnectedSSID == (char*)bestMqtt->ssid) {
 					m_ISR_CHECK = false;
+					if ( (bestMqtt->rssi >= -60) && (bestMqtt->rssi <= -40)) {
+						printMsg(OS, true, "Operating System Dynamic ISR():: Our MQTT Signal is Good, %d dB AP: %s", bestMqtt->rssi, bestMqtt->ssid);
+					}
+
+					else if((bestMqtt->rssi >= -40) && (bestMqtt->rssi <= -20))
+						printMsg(OS, true, "Operating System Dynamic ISR():: Our MQTT Signal is Very Good, %d dB AP: %s", bestMqtt->rssi, bestMqtt->ssid);
+					
+					else {
+						printMsg(OS, true, "Operating System Dynamic ISR():: Our MQTT Signal is Weak, %d dB AP: %s", bestMqtt->rssi, bestMqtt->ssid);
+					}
 					return true;
 				}
 
 				else {
-					printMsg(WIFI, true, "Operating System Dynamic ISR():: Found New Strong MQTT AP");
+					printMsg(OS, true, "Operating System Dynamic ISR():: Found New Strong MQTT AP");
 					m_ISR_CHECK = false;
 					wifi_station_disconnect();
 					return false;
@@ -169,11 +179,23 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 
 			if (m_ConnectedSSID == (char*)bestMesh->ssid) {
 				m_ISR_CHECK = true;
+				if ((bestMesh->rssi >= -60) && (bestMesh->rssi <= -40)) {
+
+					printMsg(OS, true, "Operating System Dynamic ISR():: Our MESH Signal is Good, %d dB, AP: %s", bestMesh->rssi, bestMesh->ssid);
+				}
+
+				else if ((bestMesh->rssi >= -40) && (bestMesh->rssi <= -20))
+					printMsg(OS, true, "Operating System Dynamic ISR():: Our MESH Signal is Very Good,%d dB, AP: %s", bestMesh->rssi, bestMesh->ssid);
+
+				else {
+					printMsg(OS, true, "Operating System Dynamic ISR():: Our MESH Signal is Weak,%d dB, AP: %ds", bestMesh->rssi, bestMesh->ssid);
+				}
+
 				return false;
 			}
 
 			else {
-				printMsg(WIFI, true, "Operating System Dynamic ISR():: Found New Strong MESH AP");
+				printMsg(OS, true, "Operating System Dynamic ISR():: Found New Strong MESH AP");
 				wifi_station_disconnect();
 				m_ISR_CHECK = false;
 				return false;
