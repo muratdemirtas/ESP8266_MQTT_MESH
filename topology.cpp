@@ -23,6 +23,7 @@ void ICACHE_FLASH_ATTR topology::startSys(void) {
 	wifi_set_event_handler_cb(wifiEventCb);
 	wifi_softap_dhcps_stop();
 	startDynamic();
+	StartAccessPoint();
 	startScanAps();
 
 }

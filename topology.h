@@ -118,9 +118,10 @@ public:
 	void                setReceiveCallback(void(*onReceive)(uint32_t from, String &msg));
 	void                setNewConnectionCallback(void(*onNewConnection)(bool adopt));
 	void manageConnections(void);
-  
+	void StartAccessPoint(void);
 	uint32_t getNodeTime(void);
-
+	uint8_t* staMacAddress(uint8* mac);
+	uint8_t* softAPmacAddress(uint8* mac);
 	void	connectTcpServer(void);
 
 	SimpleList<meshConnectionType>  m_connections;
@@ -165,8 +166,9 @@ private:
 	String		m_meshPassword;
 	uint16_t	m_meshPort;
 
+	String		m_myStaMacAddr;
+	String		m_mySoftAPMacAddr;
 
-	
 	scanStatusTypes			m_scanStatus;
 
 	uint32_t    m_myChipID;

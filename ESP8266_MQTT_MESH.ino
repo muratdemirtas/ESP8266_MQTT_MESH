@@ -50,6 +50,7 @@ void setup() {
 	
 	sys.setupMesh(MESH_PREFIX, MESH_PASSWORD, MESH_PORT);
 	sys.startSys();
+
 	os_timer_setfn(&yerpTimer, yerpCb, NULL);
 	os_timer_arm(&yerpTimer, 1000, 1);
 
