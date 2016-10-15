@@ -11,8 +11,10 @@ void ICACHE_FLASH_ATTR topology::setupMesh(String meshPrefix, String meshPasswor
 void ICACHE_FLASH_ATTR topology::StartAccessPoint(void) {
 	m_myChipID = system_get_chip_id();
 	m_mySSID = m_meshPrefix + String(m_myChipID);
+	//m_mySSID = m_meshPrefix + mac2str(softAPmacAddress(MAC2_STA)).c_str();
 	m_mySoftAPMacAddr = mactostr(softAPmacAddress(MAC2_STA)).c_str();
 	m_myStaMacAddr = mactostr(staMacAddress(MAC2_STA)).c_str();
+
 	ip_addr ip, netmask;
 	IP4_ADDR(&ip, 192, 168, (m_myChipID & 0xFF), 1);
 	IP4_ADDR(&netmask, 255, 255, 255, 0);

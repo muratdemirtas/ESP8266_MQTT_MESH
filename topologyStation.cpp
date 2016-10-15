@@ -88,6 +88,12 @@ String ICACHE_FLASH_ATTR topology::mactostr(uint8* bssid) {
 	return macstr;
 }
 
+String ICACHE_FLASH_ATTR topology::mac2str(uint8* bssid) {
+	char macstr2[18];
+	snprintf(macstr2, 18, "%02x%02x%02x%02x%02x%02x", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+	return macstr2;
+}
+
 //For Dynamic topology network, i added timer for research APs.
 void ICACHE_FLASH_ATTR topology::searchTimerCallback(void *arg) {
 	staticF->printMsg(OS, true, "TIMER INTERRUPT: SEARCHING APs..");

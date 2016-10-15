@@ -102,6 +102,7 @@ public:
 	void	startDynamic(void);
 	static  void DynamicRssi(void *arg);
 	static	void DynamicRssiCb(void *arg, STATUS status);
+	String mac2str(uint8* bssid);
 	static	String	mactostr(uint8* bssid);
 	String m_ConnectedSSID = "";
 	void mqttBegin(void);
