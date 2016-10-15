@@ -95,14 +95,14 @@ void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned shor
 
 	if (receiveConn == NULL) {
 		staticF->printMsg(ERROR,true, "MESH: RECEIVED FROM UNKNOWN CONNECTION. DATA: %s",data);
-		staticF->printMsg(ERROR,false, "RECOVERYABLE.");
+		staticF->printMsg(ERROR,true, "RECOVERYABLE.");
 		return;
 	}
 
 	DynamicJsonBuffer jsonBuffer(JSON_BUFSIZE);
 	JsonObject& root = jsonBuffer.parseObject(data);
 	if (!root.success()) {   
-		staticF->printMsg(ERROR, "MESH: JSON PARSE FAILED, DATA: %s", data);
+		staticF->printMsg(ERROR,true, "MESH: JSON PARSE FAILED, DATA: %s", data);
 		return;
 	}
 
@@ -287,7 +287,7 @@ bool ICACHE_FLASH_ATTR topology::sendPackage(meshConnectionType *connection, Str
 
 //Build mesh package using Json data format for communication
 String ICACHE_FLASH_ATTR topology::buildMeshPackage(uint32_t targetId, meshPackageType type, String &msg) {
-	printMsg(MESH_STATUS, "BUILDING MESH PACKAGE DATA: %s", msg.c_str());
+	printMsg(MESH_STATUS, true,"BUILDING MESH PACKAGE DATA: %s", msg.c_str());
 
 	DynamicJsonBuffer jsonBuffer(JSON_BUFSIZE);
 	JsonObject& root = jsonBuffer.createObject();

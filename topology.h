@@ -26,7 +26,7 @@ extern "C" {
 //Define debug types for serial debugging.
 enum debugTypes {
 	ERROR = 0,
-	BOOT = 1,
+	BOOT = true,
 	MQTT_STATUS = 2,
 	MESH_STATUS = 3,
 	CONNECTION = 4,
@@ -44,14 +44,14 @@ enum scanStatusTypes {
 
 enum networkType {
 	FOUND_MQTT = 0,
-	FOUND_MESH = 1,
+	FOUND_MESH = true,
 	NOTHING = 2
 };
 
 
 enum meshPackageType {
 	DROP = 0,
-	BROADCAST = 1,
+	BROADCAST = true,
 	SINGLE = 2,
 	MQTT = 3,
 	NODE_SYNC_REQUEST = 4,
@@ -59,7 +59,7 @@ enum meshPackageType {
 };
 enum syncStatusType {
 	NEEDED = 0,
-	REQUESTED = 1,
+	REQUESTED = true,
 	IN_PROGRESS = 2,
 	COMPLETE = 3
 };
@@ -92,7 +92,7 @@ public:
 	void setupMqtt(String mqttPrefix, String mqttPassword, char* mqtt_server, uint16_t mqtt_port);
 	void setupMesh(String meshPrefix, String meshPassword, uint16_t mesh_port);
 	void setDebug(int types);
-	void printMsg(debugTypes type,bool newline,const char* format ...);
+	void printMsg(debugTypes type, bool newline,const char* format ...);
 	void bootMsg(void);
 	void startSys(void);
 	void startAp(String mesh_pre, String mesh_passwd, uint16_t mesh_port);

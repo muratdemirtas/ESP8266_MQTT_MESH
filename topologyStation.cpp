@@ -139,16 +139,13 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 					Serial.println("BAGLANTI KOPARILMAYACAK");
 					m_ISR_CHECK = false;
 					wifi_station_disconnect();
-					os_timer_setfn(&staticF->m_searchTimer, searchTimerCallback, NULL);
-					os_timer_arm(&staticF->m_searchTimer, SEARCHTM_INTERVAL, 0);
 					printMsg(OS, true, "Operating System Dynamic ISR():: SCAN AP NETWORKS STARTED.");
-
 					return false;
 				}
 
 				else {
 					Serial.println("BAGLANTI KOPARILACAK");
-					//disconnect this.
+				
 					m_ISR_CHECK = false;
 					return false;
 				}

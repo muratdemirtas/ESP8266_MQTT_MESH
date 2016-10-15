@@ -2,7 +2,7 @@
 #include <stdarg.h>     //Used for print arguments in serial.
 
 int type = 0;           //Used for store debug types.
-
+int line = 0;
 //Set debug messages for serial debugging. Only selected types will print.
 void ICACHE_FLASH_ATTR topology::setDebug(int types) {
 	type = types;
@@ -17,7 +17,7 @@ void ICACHE_FLASH_ATTR topology::printMsg(debugTypes types, bool newline, const 
 		vsnprintf(message, sizeof(message), format, args);
 		Serial.print(message);
 
-		if (newline)
+		for(int i = 0; i <= line; i++ )
 			Serial.println();
 
 		va_end(args);
