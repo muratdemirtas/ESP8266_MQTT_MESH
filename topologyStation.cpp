@@ -159,6 +159,7 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 					printMsg(OS, true, "Operating System Dynamic ISR():: Found New Strong MQTT AP");
 					m_ISR_CHECK = false;
 					wifi_station_disconnect();
+					m_networkType = NOTHING;
 					return false;
 				}
 			}
@@ -196,6 +197,7 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 
 			else {
 				printMsg(OS, true, "Operating System Dynamic ISR():: Found New Strong MESH AP");
+				m_networkType = NOTHING;
 				wifi_station_disconnect();
 				m_ISR_CHECK = false;
 				return false;

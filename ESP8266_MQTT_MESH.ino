@@ -50,31 +50,7 @@ void setup() {
 	
 	sys.setupMesh(MESH_PREFIX, MESH_PASSWORD, MESH_PORT);
 	sys.startSys();
-
-	os_timer_setfn(&yerpTimer, yerpCb, NULL);
-	os_timer_arm(&yerpTimer, 1000, 1);
-
 }
-
-
-void yerpCb(void *arg) {
-	static int yerpCount;
-	int connCount = 0;
-
-	String msg = "Yerp=";
-	msg += yerpCount++;
-
-	sys.printMsg(APP,true, "msg-->%s<-- stationStatus=%u numConnections=%u\n", msg.c_str(), wifi_station_get_connect_status(), sys.connectionCount(NULL));
-
-	SimpleList<meshConnectionType>::iterator connection = sys.m_connections.begin();
-	while (connection != sys.m_connections.end()) {
-		sys.printMsg(APP,true,"\tconn#%d, chipId=%d subs=%s\n", connCount++, connection->chipId, connection->subConnections.c_str());
-		connection++;
-	}
-
-}
-
-
 
 
 void loop() {
