@@ -22,7 +22,6 @@ extern topology* staticF;
 #define MQTT_PORT   1883
 #define MQTT_SERVER "192.168.1.9"
 
-
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
 	Serial.print("Message arrived [");
 	Serial.print(topic);

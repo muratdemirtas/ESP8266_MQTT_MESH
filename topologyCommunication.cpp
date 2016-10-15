@@ -176,19 +176,19 @@ meshConnectionType* ICACHE_FLASH_ATTR topology::findConnection(uint32_t chipId) 
 	while (connection != m_connections.end()) {
 
 		if (connection->chipId == chipId) {  // check direct connections
-			printMsg(COMMUNICATION, true, "FOUND DIRECT CONNECTION.");
+			printMsg(COMMUNICATION, true, "WIFI: Found DIRECT connection for this AP.");
 			return connection;
 		}
 
 		String chipId2Str(chipId);
 		if (connection->subConnections.indexOf(chipId2Str) != -1) { // check sub-connections
-			printMsg(COMMUNICATION, true, "FOUND SUB CONNECTION.");
+			printMsg(COMMUNICATION, true, "WIFI: Found SUB connection for this AP.");
 			return connection;
 		}
 
 		connection++;
 	}
-	printMsg(CONNECTION, true, "DIDNT FIND CONNECTION TO: %d \n", chipId);
+	printMsg(CONNECTION, true, "WIFI: Didn't Found any connection for this AP.", chipId);
 	return NULL;
 }
 

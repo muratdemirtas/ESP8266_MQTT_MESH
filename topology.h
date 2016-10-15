@@ -20,7 +20,7 @@ extern "C" {
 
 #include <SimpleList.h>
 #include <ArduinoJson.h>
-#define SEARCHTM_INTERVAL 5000
+#define SEARCHTM_INTERVAL 10000
 #define JSON_BUFSIZE      500
 #define NODE_TIMEOUT        3000000  
 //Define debug types for serial debugging.
@@ -97,10 +97,13 @@ public:
 	void startSys(void);
 	void startAp(String mesh_pre, String mesh_passwd, uint16_t mesh_port);
 	void startScanAps(void);
+	bool m_ISR_CHECK= false;
 	bool connectToBestAp(void);
-
+	void	startDynamic(void);
+	static  void DynamicRssi(void *arg);
+	static	void DynamicRssiCb(void *arg, STATUS status);
 	static	String	mactostr(uint8* bssid);
-
+	String m_ConnectedSSID = "";
 	void mqttBegin(void);
 	meshConnectionType* closeConnection(meshConnectionType *conn);
 	String              subConnectionJson(meshConnectionType *exclude);
