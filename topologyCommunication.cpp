@@ -343,9 +343,9 @@ meshConnectionType* ICACHE_FLASH_ATTR topology::closeConnection(meshConnectionTy
 void ICACHE_FLASH_ATTR topology::handleNodeSync(meshConnectionType *conn, JsonObject& root) {
 	printMsg(SYNC,true, "handleNodeSync(): with %u\n", conn->chipId);
 
-	meshPackageType type = (meshPackageType)(int)root["type"];
-	uint32_t        remoteChipId = (uint32_t)root["from"];
-	uint32_t        destId = (uint32_t)root["dest"];
+	meshPackageType type = (meshPackageType)(int)root["TYPE"];
+	uint32_t        remoteChipId = (uint32_t)root["FROM"];
+	uint32_t        destId = (uint32_t)root["DEST"];
 	bool            reSyncAllSubConnections = false;
 
 	if ((destId == 0) && (findConnection(remoteChipId) != NULL)) {

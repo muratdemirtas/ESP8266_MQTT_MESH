@@ -1,5 +1,6 @@
 #include "topology.h"
 uint8  MAC2_STA[] = { 0,0,0,0,0,0 };
+
 void ICACHE_FLASH_ATTR topology::setupMesh(String meshPrefix, String meshPassword, uint16_t mesh_port) {
 	m_meshPrefix = meshPrefix;
 	m_meshPassword = meshPassword;
@@ -9,6 +10,7 @@ void ICACHE_FLASH_ATTR topology::setupMesh(String meshPrefix, String meshPasswor
 
 }
 void ICACHE_FLASH_ATTR topology::StartAccessPoint(void) {
+
 	m_myChipID = system_get_chip_id();
 	m_mySSID = m_meshPrefix + String(m_myChipID);
 	//m_mySSID = m_meshPrefix + mac2str(softAPmacAddress(MAC2_STA)).c_str();

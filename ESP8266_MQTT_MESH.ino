@@ -17,7 +17,7 @@ extern topology* staticF;
 #define MESH_PASSWORD  "1234567890"
 #define MESH_PORT   8888
 
-#define MQTT_PREFIX "Muhendis"
+#define MQTT_PREFIX "Muhenvdis"
 #define MQTT_PASSWORD "Murtiaxi133."
 #define MQTT_PORT   1883
 #define MQTT_SERVER "192.168.1.9"
@@ -41,7 +41,7 @@ void setup() {
 	}
 	sys.setupMqtt(MQTT_PREFIX, MQTT_PASSWORD, MQTT_SERVER, MQTT_PORT);
 
-	//staticF->printMsg(MQTT_STATUS, true, "MQTT: CONNECTING TO MQTT : %s, PORT: %d", staticF->m_mqttServer, staticF->m_mqttPort);
+	//staticF->printMsg(MQTT_STATUS, 1, "MQTT: CONNECTING TO MQTT : %s, PORT: %d", staticF->m_mqttServer, staticF->m_mqttPort);
 	client.setServer("192.168.1.9", 1883);
 	client.setCallback(mqttCallback);
 	sys.setDebug(BOOT | OS | MQTT_STATUS | MESH_STATUS | COMMUNICATION |ERROR );
@@ -50,7 +50,30 @@ void setup() {
 	
 	sys.setupMesh(MESH_PREFIX, MESH_PASSWORD, MESH_PORT);
 	sys.startSys();
+	os_timer_setfn(&yerpTimer, yerpCb, NULL);
+	os_timer_arm(&yerpTimer, 1000, 1);
+
 }
+
+
+void yerpCb(void *arg) {
+	static int yerpCount;
+	int connCount = 0;
+
+	String msg = "Yerp=";
+	msg += yerpCount++;
+
+	sys.printMsg(APP,1, "msg-->%s<-- stationStatus=%u numConnections=%u\n", msg.c_str(), wifi_station_get_connect_status(), sys.connectionCount(NULL));
+
+	SimpleList<meshConnectionType>::iterator connection = sys.m_connections.begin();
+	while (connection != sys.m_connections.end()) {
+		sys.printMsg(APP,1,"\tconn#%d, chipId=%d subs=%s\n", connCount++, connection->chipId, connection->subConnections.c_str());
+		connection++;
+	}
+
+}
+
+
 
 
 void loop() {
