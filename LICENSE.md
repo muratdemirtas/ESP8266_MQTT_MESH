@@ -1,4 +1,4 @@
-copyright Murat DEMÝRTAÞ 2016
+Copyright Murat Demirtaþ 2016
 
 You may use, distribute and copy Kodi under the terms of GNU General
 Public License version 2, which is displayed below.
