@@ -3,6 +3,16 @@
 extern topology* staticF;  //for using our topology methods in static callback functions
 
 
+void ICACHE_FLASH_ATTR topology::DynamicRssi(void *arg) {
+
+	if (wifi_station_scan(NULL, scanApsCallback)) {
+		staticF->printMsg(WIFI, true, "OS TIMER ISR(): Access Point Scan is Starting.");
+		staticF->m_ISR_CHECK = true;
+	}
+	return;
+}
+
+
 void	topology::startDynamic(void) {
 	//For Dynamic topology network, i added timer for research APs.
 	//Setup timer interrupting service function and interval.
@@ -334,16 +344,11 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 	}
 
 
-	void ICACHE_FLASH_ATTR topology::DynamicRssi(void *arg) {
-
-		if (wifi_station_scan(NULL, scanApsCallback)) {
-			staticF->printMsg(WIFI, true, "OS TIMER ISR(): Access Point Scan is Starting.");
-			staticF->m_ISR_CHECK = true;
-		}
-		return;
-	}
 
 
+
+
+//Operating System callback for wifi events, we working with callback for best performance
 void ICACHE_FLASH_ATTR topology::wifiEventCb(System_Event_t *event) {
 	switch (event->event) {
 	case EVENT_STAMODE_CONNECTED:

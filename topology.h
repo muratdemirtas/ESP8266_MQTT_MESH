@@ -24,12 +24,12 @@ extern "C" {
 #define SEARCHTM_INTERVAL 10000  //10 second
 
 #define JSON_BUFSIZE      500    //Json buffer size.
-#define NODE_TIMEOUT        3000000  //3 second(uSecs)
+#define NODE_TIMEOUT        3000000 //3 second(uSecs)
 
 //Define debug types for serial debugging.
 enum debugTypes {
 	ERROR = 0,
-	BOOT = true,
+	BOOT = 1,
 	MQTT_STATUS = 2,
 	MESH_STATUS = 3,
 	CONNECTION = 4,
@@ -49,14 +49,14 @@ enum scanStatusTypes {
 //Define node type(mqtt= COORDINATOR, mesh = ROUTER)
 enum networkType {
 	FOUND_MQTT = 0,
-	FOUND_MESH = true,
+	FOUND_MESH = 1,
 	NOTHING = 2
 };
 
 //Communication packet types
 enum meshPackageType {
 	DROP = 0,
-	BROADCAST = true,
+	BROADCAST = 1,
 	SINGLE = 2,
 	MQTT = 3,
 	NODE_SYNC_REQUEST = 4,
@@ -66,7 +66,7 @@ enum meshPackageType {
 //Mesh sync types
 enum syncStatusType {
 	NEEDED = 0,
-	REQUESTED = true,
+	REQUESTED = 1,
 	IN_PROGRESS = 2,
 	COMPLETE = 3
 };
@@ -92,8 +92,8 @@ public:
 
 	void setupMqtt(String mqttPrefix, String mqttPassword, char* mqtt_server, uint16_t mqtt_port);
 	void setupMesh(String meshPrefix, String meshPassword, uint16_t mesh_port);
-	void setDebug(int types);
-	void printMsg(debugTypes type, bool newline,const char* format ...);
+	void setDebug(uint16_t types);
+	void printMsg(debugTypes type, bool		newline,const char* format ...);
 	void bootMsg(void);
 	void startSys(void);
 
@@ -116,7 +116,7 @@ public:
 	void                setReceiveCallback(void(*onReceive)(uint32_t from, String &msg));
 	void                setNewConnectionCallback(void(*onNewConnection)(bool adopt));
 	static	 void		wifiEventCb(System_Event_t *event);
-
+	bool				adoptionCalc(meshConnectionType *conn);
 	static	String		mactostr(uint8* bssid);
 	String				mac2str(uint8* bssid);
 	
@@ -174,7 +174,7 @@ protected :
 
 private:
 
-	uint32_t    _chipId;
+
 	String		m_meshPrefix;
 	String		m_meshPassword;
 	uint16_t	m_meshPort;

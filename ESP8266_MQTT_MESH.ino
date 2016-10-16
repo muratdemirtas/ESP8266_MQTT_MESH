@@ -4,14 +4,14 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
-os_timer_t  yerpTimer;
-
+os_timer_t  pingTimer;
 
 #define UART_STATUS true
 topology sys;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+
 extern topology* staticF;
 #define MESH_PREFIX "MESH"
 #define MESH_PASSWORD  "1234567890"
@@ -44,35 +44,33 @@ void setup() {
 	//staticF->printMsg(MQTT_STATUS, 1, "MQTT: CONNECTING TO MQTT : %s, PORT: %d", staticF->m_mqttServer, staticF->m_mqttPort);
 	client.setServer("192.168.1.9", 1883);
 	client.setCallback(mqttCallback);
-	sys.setDebug(BOOT | OS | MQTT_STATUS | MESH_STATUS | COMMUNICATION |ERROR );
+	sys.setDebug(BOOT | OS | MQTT_STATUS | MESH_STATUS | COMMUNICATION |ERROR | SYNC);
 	sys.bootMsg();
 
 	
 	sys.setupMesh(MESH_PREFIX, MESH_PASSWORD, MESH_PORT);
 	sys.startSys();
-	os_timer_setfn(&yerpTimer, yerpCb, NULL);
-	os_timer_arm(&yerpTimer, 1000, 1);
+
+	os_timer_setfn(&pingTimer, pingCb, NULL);
+	os_timer_arm(&pingTimer, 1000, 1);
 
 }
 
 
-void yerpCb(void *arg) {
-	static int yerpCount;
+void ICACHE_FLASH_ATTR pingCb(void *arg) {
+
 	int connCount = 0;
 
-	String msg = "Yerp=";
-	msg += yerpCount++;
-
-	sys.printMsg(APP,1, "msg-->%s<-- stationStatus=%u numConnections=%u\n", msg.c_str(), wifi_station_get_connect_status(), sys.connectionCount(NULL));
+	//our node exclude
+	sys.printMsg(OS,true, "MESH: Total Connection Count = %u", sys.connectionCount(NULL));
 
 	SimpleList<meshConnectionType>::iterator connection = sys.m_connections.begin();
 	while (connection != sys.m_connections.end()) {
-		sys.printMsg(APP,1,"\tconn#%d, chipId=%d subs=%s\n", connCount++, connection->chipId, connection->subConnections.c_str());
+		sys.printMsg(APP,1,"\tMESH: Connected: #%d, ID=%d SUBS=%s\n", connCount++, connection->chipId, connection->subConnections.c_str());
 		connection++;
 	}
 
 }
-
 
 
 

@@ -50,7 +50,7 @@ void ICACHE_FLASH_ATTR topology::connectTcpServer(void) {
 
 
 meshConnectionType* ICACHE_FLASH_ATTR topology::findConnection(espconn *conn) {
-	int i = 0;
+
 	SimpleList<meshConnectionType>::iterator connection = m_connections.begin();
 	while (connection != m_connections.end()) {
 		if (connection->esp_conn == conn) {
@@ -70,6 +70,7 @@ void ICACHE_FLASH_ATTR topology::meshConnectedCb(void *arg) {
 	meshConnectionType newConn;
 	newConn.esp_conn = (espconn *)arg;
 	espconn_set_opt(newConn.esp_conn, ESPCONN_NODELAY); 
+	newConn.lastRecieved = staticF->getNodeTime();
 
 	espconn_regist_recvcb(newConn.esp_conn, meshRecvCb);
 	espconn_regist_sentcb(newConn.esp_conn, meshSentCb);
@@ -80,12 +81,10 @@ void ICACHE_FLASH_ATTR topology::meshConnectedCb(void *arg) {
 
 	if (newConn.esp_conn->proto.tcp->local_port != staticF->m_meshPort) { 
 		staticF->printMsg(MESH_STATUS, true, "MESH: WE ARE IN STA MODE, START SYNC.");
-
+		staticF->startNodeSync(staticF->m_connections.end() - 1);
 	}
 	else
 		staticF->printMsg(MESH_STATUS, true, "MESH: WE ARE AP, NO ACTION NEEDED.");
-
-	
 }
 
 void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned short length) {
@@ -113,6 +112,10 @@ void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned shor
 	switch ((meshPackageType)(int)root["TYPE"]) {
 
 	case SINGLE:
+	case NODE_SYNC_REQUEST:
+	case NODE_SYNC_REPLY:
+		staticF->handleNodeSync(receiveConn, root);
+		break;
 
 		//check if message coming for us.
 		if ((uint32_t)root["DEST"] == staticF->getMyID()) {
@@ -139,9 +142,11 @@ void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned shor
 		staticF->printMsg(ERROR,true, "CORRUPT JSON PACKAGE , TYPE: %d", (int)root["TYPE"]);
 		return;
 	}
-
+	receiveConn->lastRecieved = staticF->getNodeTime();
 	return;
 }
+
+
 
 
 //Find connection for target id.
@@ -160,6 +165,7 @@ void ICACHE_FLASH_ATTR topology::meshSentCb(void *arg) {
 		String package = *meshConnection->sendQueue.begin();
 		meshConnection->sendQueue.pop_front();
 		sint8 errCode = espconn_send(meshConnection->esp_conn, (uint8*)package.c_str(), package.length());	
+
 		if (errCode != 0) {
 			staticF->printMsg(ERROR,true, "PACKAGE SEND FAILED, ERROR CODE: %d\n", errCode);
 		}
@@ -169,28 +175,10 @@ void ICACHE_FLASH_ATTR topology::meshSentCb(void *arg) {
 	}
 }
 
-//Find connection for target id.
-meshConnectionType* ICACHE_FLASH_ATTR topology::findConnection(uint32_t chipId) {
 
-	SimpleList<meshConnectionType>::iterator connection = m_connections.begin();
-	while (connection != m_connections.end()) {
 
-		if (connection->chipId == chipId) {  // check direct connections
-			printMsg(COMMUNICATION, true, "WIFI: Found DIRECT connection for this AP.");
-			return connection;
-		}
 
-		String chipId2Str(chipId);
-		if (connection->subConnections.indexOf(chipId2Str) != -1) { // check sub-connections
-			printMsg(COMMUNICATION, true, "WIFI: Found SUB connection for this AP.");
-			return connection;
-		}
 
-		connection++;
-	}
-	printMsg(CONNECTION, true, "WIFI: Didn't Found any connection for this AP.", chipId);
-	return NULL;
-}
 
 //Detect who disconnected.
 void ICACHE_FLASH_ATTR topology::meshDisconCb(void *arg) {
@@ -206,6 +194,9 @@ void ICACHE_FLASH_ATTR topology::meshDisconCb(void *arg) {
 
 	return;
 }
+
+
+
 
 //Mesh reconnect.
 void ICACHE_FLASH_ATTR topology::meshReconCb(void *arg, sint8 err) {
@@ -229,7 +220,7 @@ bool ICACHE_FLASH_ATTR topology::sendMessage(uint32_t destId, meshPackageType ty
 
 //Send message if we have connection for target id.
 bool ICACHE_FLASH_ATTR topology::sendMessage(meshConnectionType *conn, uint32_t destId, meshPackageType type, String &msg) {
-	printMsg(COMMUNICATION, true, "SEND TO: %d, TYPE: %d, MSG: %s ", conn->chipId, destId, (uint8_t)type, msg.c_str());
+	printMsg(COMMUNICATION, true, "SEND TO: %d, TYPE: %d, MSG: %s ", conn->chipId,(uint8_t)type, msg.c_str());
 	
 	String package = buildMeshPackage(destId, type, msg);
 	return sendPackage(conn, package);
@@ -260,7 +251,7 @@ bool ICACHE_FLASH_ATTR topology::broadcastMessage(uint32_t FROM, meshPackageType
 bool ICACHE_FLASH_ATTR topology::sendPackage(meshConnectionType *connection, String &package) {
 	printMsg(COMMUNICATION, true,"SEND TO: %d, MSG: %s ", connection->chipId, package.c_str());
 
-	if (package.length() > 2000)
+	if (package.length() > 1400)
 		printMsg(ERROR,true, "MSG SENDING FAILED, PACKAGE TOO LARGE: %d\n", package.length());
 
 	if (connection->sendReady == true) {
@@ -294,7 +285,23 @@ String ICACHE_FLASH_ATTR topology::buildMeshPackage(uint32_t targetId, meshPacka
 	root["DEST"] = targetId;
 	root["FROM"] = m_myChipID;
 	root["TYPE"] = (uint8_t)type;
-	root["msg"] = msg;
+	root["MSG"] = msg;
+
+	switch (type) {
+	case NODE_SYNC_REQUEST:
+	case NODE_SYNC_REPLY:
+	{
+		JsonArray& subs = jsonBuffer.parseArray(msg);
+		if (!subs.success()) {
+			printMsg(MESH_STATUS,true, "buildMeshPackage(): subs = jsonBuffer.parseArray( msg ) failed!");
+		}
+		root["subs"] = subs;
+		break;
+	}
+
+	default:
+		root["msg"] = msg;
+	}
 
 	String ret;
 	root.printTo(ret);
@@ -315,17 +322,12 @@ bool ICACHE_FLASH_ATTR topology::sendBroadcast(String &message) {
 
 
 uint32_t ICACHE_FLASH_ATTR topology::getNodeTime(void) {
-	
 	uint32_t ret = system_get_time();
-	printMsg(SYNC,true, "getNodeTime(): time=%d\n", ret);
 	return ret;
 }
 
-
-
 void ICACHE_FLASH_ATTR topology::startNodeSync(meshConnectionType *conn) {
-	printMsg(SYNC,true,"startNodeSync(): with %u\n", conn->chipId);
-
+	printMsg(SYNC,true,"SYNC: Starting NodeSync With: %d", conn->chipId);
 	String subs = subConnectionJson(conn);
 	sendMessage(conn, conn->chipId, NODE_SYNC_REQUEST, subs);
 	conn->nodeSyncRequest = getNodeTime();
@@ -341,7 +343,7 @@ meshConnectionType* ICACHE_FLASH_ATTR topology::closeConnection(meshConnectionTy
 
 
 void ICACHE_FLASH_ATTR topology::handleNodeSync(meshConnectionType *conn, JsonObject& root) {
-	printMsg(SYNC,true, "handleNodeSync(): with %u\n", conn->chipId);
+	printMsg(SYNC,true, "SYNC: Processing NodeSync With: %u", conn->chipId);
 
 	meshPackageType type = (meshPackageType)(int)root["TYPE"];
 	uint32_t        remoteChipId = (uint32_t)root["FROM"];
@@ -351,13 +353,13 @@ void ICACHE_FLASH_ATTR topology::handleNodeSync(meshConnectionType *conn, JsonOb
 	if ((destId == 0) && (findConnection(remoteChipId) != NULL)) {
 		// this is the first NODE_SYNC_REQUEST from a station
 		// is we are already connected drop this connection
-		printMsg(SYNC, true, "handleNodeSync(): Already connected to node %d.  Dropping\n", conn->chipId);
+		printMsg(SYNC, true, "SYNC: Dropping Connection: %u, For Syncing.", conn->chipId);
 		closeConnection(conn);
 		return;
 	}
 
 	if (conn->chipId != remoteChipId) {
-		printMsg(SYNC, true, "handleNodeSync(): conn->chipId updated from %d to %d\n", conn->chipId, remoteChipId);
+		printMsg(SYNC, true, "SYNC: conn->chipId updated from %d to %d\n", conn->chipId, remoteChipId);
 		conn->chipId = remoteChipId;
 
 	}
@@ -370,19 +372,19 @@ void ICACHE_FLASH_ATTR topology::handleNodeSync(meshConnectionType *conn, JsonOb
 	}
 
 	switch (type) {
-	case NODE_SYNC_REQUEST:
-	{
+		case NODE_SYNC_REQUEST:
+		{
 		printMsg(SYNC,true, "handleNodeSync(): valid NODE_SYNC_REQUEST %d sending NODE_SYNC_REPLY\n", conn->chipId);
 		String myOtherSubConnections = subConnectionJson(conn);
 		sendMessage(conn, m_myChipID, NODE_SYNC_REPLY, myOtherSubConnections);
-		break;
-	}
-	case NODE_SYNC_REPLY:
+			break;
+		}
+		case NODE_SYNC_REPLY:
 		printMsg(SYNC,true, "handleNodeSync(): valid NODE_SYNC_REPLY from %d\n", conn->chipId);
 		conn->nodeSyncRequest = 0;  //reset nodeSyncRequest Timer  ????
-		break;
-	default:
-		printMsg(ERROR,true, "handleNodeSync(): weird type? %d\n", type);
+			break;
+		default:
+			printMsg(ERROR,true, "handleNodeSync(): weird type? %d\n", type);
 	}
 
 	if (reSyncAllSubConnections == true) {
@@ -503,12 +505,12 @@ void ICACHE_FLASH_ATTR topology::manageConnections(void) {
 		}
 
 		switch (connection->nodeSyncStatus) {
-		case NEEDED:           // start a nodeSync
+			case NEEDED:           // start a nodeSync
 			printMsg(SYNC, true, "manageConnections(): start nodeSync with %d\n", connection->chipId);
 			startNodeSync(connection);
 			connection->nodeSyncStatus = IN_PROGRESS;
 
-		case IN_PROGRESS:
+			case IN_PROGRESS:
 			connection++;
 			continue;
 		}
@@ -516,6 +518,14 @@ void ICACHE_FLASH_ATTR topology::manageConnections(void) {
 
 		if (connection->newConnection == true) {  // we should only get here once first nodeSync and timeSync are complete
 
+			connection->newConnection = false;
+
+			connection++;
+			continue;
+		}
+
+		if (connection->newConnection == true) {  
+			newConnectionCallback(adoptionCalc(connection));
 			connection->newConnection = false;
 
 			connection++;
@@ -540,3 +550,54 @@ void ICACHE_FLASH_ATTR topology::manageConnections(void) {
 	}
 }
 
+
+bool ICACHE_FLASH_ATTR topology::adoptionCalc(meshConnectionType *conn) {
+	// make the adoption calulation.  Figure out how many nodes I am connected to exclusive of this connection.
+
+	uint16_t mySubCount = connectionCount(conn);  //exclude this connection.
+	uint16_t remoteSubCount = jsonSubConnCount(conn->subConnections);
+
+	bool ret = (mySubCount > remoteSubCount) ? false : true;
+
+	printMsg(MESH_STATUS, true,"adoptionCalc(): mySubCount=%d remoteSubCount=%d ret = %d\n", mySubCount, remoteSubCount, ret);
+
+	return ret;
+}
+
+
+void ICACHE_FLASH_ATTR topology::setReceiveCallback(void(*onReceive)(uint32_t from, String &msg)) {
+	printMsg(MESH_STATUS,true, "setReceiveCallback():\n");
+	receivedCallback = onReceive;
+}
+
+//***********************************************************************
+void ICACHE_FLASH_ATTR topology::setNewConnectionCallback(void(*onNewConnection)(bool adopt)) {
+	printMsg(MESH_STATUS,true, "setNewConnectionCallback():\n");
+	newConnectionCallback = onNewConnection;
+}
+
+
+
+
+//Find connection for target id.
+meshConnectionType* ICACHE_FLASH_ATTR topology::findConnection(uint32_t chipId) {
+
+	SimpleList<meshConnectionType>::iterator connection = m_connections.begin();
+	while (connection != m_connections.end()) {
+
+		if (connection->chipId == chipId) {  // check direct connections
+			printMsg(COMMUNICATION, true, "WIFI: Found DIRECT connection for this AP.");
+			return connection;
+		}
+
+		String chipIdStr(chipId);
+		if (connection->subConnections.indexOf(chipIdStr) != -1) { // check sub-connections
+			printMsg(COMMUNICATION, true, "WIFI: Found SUB connection for this AP.");
+			return connection;
+		}
+
+		connection++;
+	}
+	printMsg(CONNECTION, true, "WIFI: Didn't Found any connection for this AP.", chipId);
+	return NULL;
+}
