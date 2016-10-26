@@ -3,142 +3,187 @@
 #include "topology.h"
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266HTTPUpdateServer.h>
+#include <easyWebSocket.h>
 
-os_timer_t  pingTimer;
+os_timer_t pingTimer;
+os_timer_t meshTimer;
+os_timer_t mqttTimer;
 
 #define UART_STATUS true
+
 topology sys;
 
-WiFiClient espClient;
-PubSubClient client(espClient);
+WiFiClient	 EspTcpClient;
+PubSubClient MQTTclient(EspTcpClient);
 
-extern topology* staticF;
-#define MESH_PREFIX "MESH"
+#define MESH_PREFIX "HD_MESH_"
 #define MESH_PASSWORD  "1234567890"
 #define MESH_PORT   8888
 
-#define MQTT_PREFIX "Muhenvdis"
+#define MQTT_PREFIX "Muhendis"
 #define MQTT_PASSWORD "Murtiaxi133."
 #define MQTT_PORT   1883
-#define MQTT_SERVER "192.168.1.9"
+#define MQTT_SERVER "139.59.138.76"
 
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
-	Serial.print("Message arrived [");
-	Serial.print(topic);
-	Serial.print("] ");
-	for (int i = 0; i < length; i++) {
-		Serial.print((char)payload[i]);
-	}
-	Serial.println();
-
-}
 
 void setup() {
 
 	if (UART_STATUS) {
 		Serial.begin(115200);
-		while (!Serial) {}
+
+		while (!Serial) {
+			delayMicroseconds(10);
+		}
+		sys.setDebug(BOOT | OS | WIFI| SCAN| ERROR| APP);
+
+		os_timer_setfn(&pingTimer, pingCb, NULL);
+		os_timer_arm(&pingTimer, 5000, 1);
+
+		os_timer_setfn(&meshTimer, meshStatusCb, NULL);
+		os_timer_arm(&meshTimer, 3000, 1);
+
+		os_timer_setfn(&mqttTimer, mqttStatusCb, NULL);
+		os_timer_arm(&mqttTimer, 10000, 1);
+		sys.bootMsg();
 	}
+	pinMode(D6, OUTPUT);
+	pinMode(D7, OUTPUT);
+	digitalWrite(D6, LOW);
+	digitalWrite(D7, LOW);
+
 	sys.setupMqtt(MQTT_PREFIX, MQTT_PASSWORD, MQTT_SERVER, MQTT_PORT);
-
-	//staticF->printMsg(MQTT_STATUS, 1, "MQTT: CONNECTING TO MQTT : %s, PORT: %d", staticF->m_mqttServer, staticF->m_mqttPort);
-	client.setServer("192.168.1.9", 1883);
-	client.setCallback(mqttCallback);
-	sys.setDebug(BOOT | OS | MQTT_STATUS | MESH_STATUS | COMMUNICATION |ERROR | SYNC);
-	sys.bootMsg();
-
-	
 	sys.setupMesh(MESH_PREFIX, MESH_PASSWORD, MESH_PORT);
+
+	MQTTclient.setServer(MQTT_SERVER, MQTT_PORT);
+	MQTTclient.setCallback(MQTTCallback);
+	sys.setReceiveCallback(&receivedCallback);
+
+	webSocketInit();
+	webSocketSetReceiveCallback(&wsReceiveCallback);
+	webSocketSetConnectionCallback(&wsConnectionCallback);
+
+	sys.setNewConnectionCallback(&newConnectionCallback);
+
 	sys.startSys();
 
-	os_timer_setfn(&pingTimer, pingCb, NULL);
-	os_timer_arm(&pingTimer, 1000, 1);
+}
 
+void ICACHE_FLASH_ATTR receivedCallback(uint32_t from, String &msg) {
+	Serial.printf("MESH: RECEIVED DATA FROM: %d , MESSAGE = %s\n", from, msg.c_str());
+	String topic = "outTopic";
+	mqttSendMessage(msg,topic);
+}
+
+
+void ICACHE_FLASH_ATTR newConnectionCallback(bool adopt) {
+	Serial.println("MESH: JOINED NEW sys...");
 }
 
 
 void ICACHE_FLASH_ATTR pingCb(void *arg) {
 
+	if (sys.connectionCount(NULL) > 0) {
+		String ping_message = "Hello Nodes, I'm: " + String(sys.getMyID());
+		sys.sendBroadcast(ping_message);
+	}
+}
+
+
+void ICACHE_FLASH_ATTR meshStatusCb(void *arg) {
 	int connCount = 0;
 
+	Serial.println("------------SYSTEM STATUS---------");
+	Serial.println("----------------------------------");
+	Serial.println("----------------------------------");
+	sys.printMsg(BOOT, true, "WIFI: STATION CONNECTED TO %s", sys.m_ConnectedSSID.c_str());
+
+	if (MQTTclient.connected()) {
+		Serial.println("MQTT: CONNECTED STATUS");
+		digitalWrite(D7, HIGH);
+	}
+	else {
+		Serial.println("MQTT: DISCONNECTED STATUS: %d"); Serial.print(MQTTclient.state());
+		digitalWrite(D7, LOW);
+	}
 	//our node exclude
-	sys.printMsg(OS,true, "MESH: Total Connection Count = %u", sys.connectionCount(NULL));
+	sys.printMsg(BOOT, true, "MESH: Total MESH Connection = %u", sys.connectionCount(NULL));
 
 	SimpleList<meshConnectionType>::iterator connection = sys.m_connections.begin();
 	while (connection != sys.m_connections.end()) {
-		sys.printMsg(APP,1,"\tMESH: Connected: #%d, ID=%d SUBS=%s\n", connCount++, connection->chipId, connection->subConnections.c_str());
-		connection++;
+		sys.printMsg(BOOT, 1, "\tMESH: Connected: #%d", connection->chipId);
+		connCount++; connection++;
 	}
 
+	Serial.println("---------------------------------");
+	Serial.println("---------------------------------");
 }
 
 
+void ICACHE_FLASH_ATTR	mqttStatusCb(void *arg) {
+	
+}
 
-void loop() {
-	if (sys.m_networkType == FOUND_MQTT) {
-		if (!client.connected()) {
+void ICACHE_FLASH_ATTR manageMqtt(void) {
+	if (sys.m_mqttStatus == true) {
+		if (!MQTTclient.connected()) {
 			mqttReconnect();
 		}
-		client.loop();
+		MQTTclient.loop();
 	}
+}
+
+void loop() {
 	sys.manageConnections();
-
+	manageMqtt();
 }
 
 
-void  mqttReconnect(void) {
+void	ICACHE_FLASH_ATTR	 mqttReconnect(void) {
 
-	while (!client.connected()) {
-		Serial.print("Attempting MQTT connection...");
-
+	while (!MQTTclient.connected()) {
+		Serial.print("MQTT: ATTEMPTING RECONNECTION\n");
 		String clientId = "ESP-" + String(system_get_chip_id());
-
-			if (client.connect(clientId.c_str())) {
-				Serial.println("connected");
-				client.publish("outTopic", "hello world");
-				client.subscribe("inTopic");
-					return;
-}
+			if (MQTTclient.connect(clientId.c_str())) {
+				Serial.println("MQTT: CONNECTED STATUS.\n");
+				MQTTclient.subscribe("inTopic");
+				return;
+			}
 
 			else {
-					Serial.print("failed, rc=");
-					Serial.print(client.state());
-					Serial.println(" try again in 5 seconds");
-
-}
+				Serial.print("MQTT: CONN FAILED, CODE: \n");
+				Serial.print(MQTTclient.state());
+			}
 }
 }
 
-void  mqttSendMessage(String &message,String &topic) {
+void	ICACHE_FLASH_ATTR	 mqttSendMessage(String &message,String &topic) {
 		char msg[50];
 		snprintf(msg, 75, message.c_str());
-		Serial.print("Publish message: ");
-		Serial.println(msg);
-		client.publish(topic.c_str(), msg);
+		Serial.print("MQTT: PUBLISHING MESSAGE:"); Serial.println(msg); Serial.println();
+		MQTTclient.publish(topic.c_str(), msg);
+}
+
+void	ICACHE_FLASH_ATTR	 MQTTCallback(char* topic, byte* payload, unsigned int length) {
+	Serial.print("MQTT: MESSAGE RECEIVED: [");	Serial.print(topic); Serial.print("] ");
+	for (int i = 0; i < length; i++) {
+		Serial.print((char)payload[i]);
+	}
+	Serial.println();
+	
 }
 
 
-void  mqttBegin(void) {
 
-
-Serial.print("Attempting MQTT connection...");
-
-String clientId = "ESP8266Client-";
-clientId += String(random(0xffff), HEX);
-
-if (client.connect(clientId.c_str())) {
-		Serial.println("connected");
-			client.publish("test/command", "hello worldanan");
-			client.subscribe("inTopic");
-//mqttLoop();
-return;
-}
-else {
-Serial.print("failed, rc=");
-Serial.print(client.state());
-Serial.println(" try again in 5 seconds");
-
+void ICACHE_FLASH_ATTR	wsConnectionCallback(void) {
+	sys.printMsg(APP, true,"WEBSOCK: INCOMING NEW CONNECTION.");
 }
 
-}
 
+void ICACHE_FLASH_ATTR  wsReceiveCallback(char *payloadData) {
+	sys.printMsg(APP, true, "WEBSOCK: RECEIVED MESSAGE FROM APP, %s", payloadData);
+
+	String msg(payloadData);
+	sys.sendBroadcast(msg);
+}

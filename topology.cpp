@@ -10,8 +10,10 @@ static void(*newConnectionCallback)(bool adopt);
 
 //Start topology system
 void ICACHE_FLASH_ATTR topology::startSys(void) {
-	
-	staticF = this;
+	wifi_station_set_auto_connect(0);
+	staticF = this; 
+	wifi_station_disconnect();
+	wifi_softap_dhcps_stop();
 
 	//Stop all services in startup.
 	if (wifi_station_get_connect_status() != STATION_IDLE) {
@@ -19,9 +21,12 @@ void ICACHE_FLASH_ATTR topology::startSys(void) {
 		wifi_station_disconnect();
 	}
 
-	wifi_station_set_auto_connect(0);
-	wifi_station_disconnect();
-	wifi_softap_dhcps_stop();
+	
+	
+
+	//Wifi Station mode.
+	wifi_set_opmode_current(0x03);
+
 
 	wifi_set_event_handler_cb(wifiEventCb);
 	m_myChipID = system_get_chip_id();        //Set chip id to our variable.

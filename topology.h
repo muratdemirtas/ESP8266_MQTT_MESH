@@ -28,16 +28,17 @@ extern "C" {
 
 //Define debug types for serial debugging.
 enum debugTypes {
-	ERROR = 0,
-	BOOT = 1,
-	MQTT_STATUS = 2,
-	MESH_STATUS = 3,
-	CONNECTION = 4,
-	COMMUNICATION = 5,
-	OS = 6,
-	APP = 7,
-	SYNC = 8,
-	WIFI = 9
+	ERROR = 0x0001,
+	BOOT = 0x0002,
+	MESH_STATUS = 0x0004,
+	CONNECTION = 0x0008,
+	COMMUNICATION = 0x0020,
+	OS = 0x0080,
+	APP = 0x0040,
+	SYNC = 0x0010,
+	WIFI = 0x0200,
+	MQTT_STATUS = 0x0400,
+	SCAN = 0x0800
 };
 
 //Scan status for searching AP's
@@ -55,12 +56,11 @@ enum networkType {
 
 //Communication packet types
 enum meshPackageType {
-	DROP = 0,
-	BROADCAST = 1,
-	SINGLE = 2,
-	MQTT = 3,
-	NODE_SYNC_REQUEST = 4,
-	NODE_SYNC_REPLY = 5
+	BROADCAST = 5,
+	SINGLE = 6,
+	MQTT = 7,
+	NODE_SYNC_REQUEST = 8,
+	NODE_SYNC_REPLY = 9
 };
 
 //Mesh sync types
@@ -101,6 +101,8 @@ public:
 	void			startDynamic(void);
 	void			startScanAps(void);
 	bool			connectToBestAp(void);
+	bool			sysPrepareFOTA(void);
+
 	void			manageConnections(void);
 	void			StartAccessPoint(void);
 	uint32_t		getNodeTime(void);
@@ -119,16 +121,17 @@ public:
 	bool				adoptionCalc(meshConnectionType *conn);
 	static	String		mactostr(uint8* bssid);
 	String				mac2str(uint8* bssid);
-	
+	void				UploadFirmwareCb(void);
 
 	meshConnectionType* closeConnection(meshConnectionType *conn);
 	String              subConnectionJson(meshConnectionType *exclude);
 	static void			scanApsCallback(void *arg, STATUS status);
+	static void			FotaTimeout(void *arg);
 	static void			searchTimerCallback(void *arg);
 	meshConnectionType* findConnection(uint32_t chipId);
 	uint32_t			getMyID(void);
-
-
+	void setMQTTReceiveCallback(void(*onReceive)(uint32_t from, String &msg));
+	bool				broadcastMqttMessage(String &message);
 	SimpleList<meshConnectionType>  m_connections;
 	SimpleList<bss_info>            m_mqttAPs;
 	SimpleList<bss_info>            m_meshAPs;
@@ -148,7 +151,7 @@ public:
 	uint16_t	m_mqttPort;
 	bool		m_ISR_CHECK = false;
 
-
+	bool m_mqttStatus = false;
 protected :
 
 	bool                sendMessage(meshConnectionType *conn, uint32_t destId, meshPackageType type, String &msg);
@@ -159,7 +162,7 @@ protected :
 	String			    buildMeshPackage(uint32_t destId, meshPackageType type, String &msg);
 
 	void    tcpServerInit(espconn &serverConn, esp_tcp &serverTcp, espconn_connect_callback connectCb, uint32 port);
-
+	
 	meshConnectionType* findConnection(espconn *conn);
 
 	static void meshConnectedCb(void *arg);
@@ -174,7 +177,7 @@ protected :
 
 private:
 
-
+	bool m_fotaStatus;
 	String		m_meshPrefix;
 	String		m_meshPassword;
 	uint16_t	m_meshPort;

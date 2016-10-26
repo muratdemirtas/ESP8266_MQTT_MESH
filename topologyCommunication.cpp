@@ -2,13 +2,12 @@
 
 
 static void(*receivedCallback)(uint32_t from, String &msg);
+
 static void(*newConnectionCallback)(bool adopt);
 
 extern topology* staticF;
 
 void ICACHE_FLASH_ATTR topology::connectTcpServer(void) {
-
-	if (m_networkType == FOUND_MESH) {
 
 		printMsg(OS, true, "CONNECTING TO TCP SERVER.");
 		struct ip_info ipconfig;
@@ -42,11 +41,7 @@ void ICACHE_FLASH_ATTR topology::connectTcpServer(void) {
 		}
 	}
 
-	else if (m_networkType == FOUND_MQTT) {
-		
-	}
 
-}
 
 
 meshConnectionType* ICACHE_FLASH_ATTR topology::findConnection(espconn *conn) {
@@ -90,6 +85,7 @@ void ICACHE_FLASH_ATTR topology::meshConnectedCb(void *arg) {
 void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned short length) {
 	meshConnectionType *receiveConn = staticF->findConnection((espconn *)arg);
 
+	String copy_data(data);
 	staticF->printMsg(MESH_STATUS,true, "MESH: RECEIVED: %s, FROM: %d ", data, receiveConn->chipId);
 
 	if (receiveConn == NULL) {
@@ -99,7 +95,7 @@ void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned shor
 	}
 
 	DynamicJsonBuffer jsonBuffer(JSON_BUFSIZE);
-	JsonObject& root = jsonBuffer.parseObject(data);
+	JsonObject& root = jsonBuffer.parseObject(copy_data);
 	if (!root.success()) {   
 		staticF->printMsg(ERROR,true, "MESH: JSON PARSE FAILED, DATA: %s", data);
 		return;
@@ -111,23 +107,10 @@ void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned shor
 
 	switch ((meshPackageType)(int)root["TYPE"]) {
 
-	case SINGLE:
+
 	case NODE_SYNC_REQUEST:
 	case NODE_SYNC_REPLY:
 		staticF->handleNodeSync(receiveConn, root);
-		break;
-
-		//check if message coming for us.
-		if ((uint32_t)root["DEST"] == staticF->getMyID()) {
-			receivedCallback((uint32_t)root["FROM"], msg);
-		}
-
-		//if this package coming for another node, then this package is ADHOC package, must be transport.
-		else {                                                   
-											 
-			String adhocStr(data);
-			staticF->sendPackage(staticF->findConnection((uint32_t)root["DEST"]), adhocStr);
-		}
 		break;
 
 	case BROADCAST:
@@ -135,8 +118,20 @@ void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned shor
 		receivedCallback((uint32_t)root["FROM"], msg);
 		break;
 
-	case MQTT:
+	case SINGLE:
+		//check if message coming for us.
+		if ((uint32_t)root["DEST"] == staticF->getMyID()) {
+			receivedCallback((uint32_t)root["FROM"], msg);
+		}
+
+		//if this package coming for another node, then this package is ADHOC package, must be transport.
+		else {
+
+			staticF->sendPackage(staticF->findConnection((uint32_t)root["DEST"]), copy_data);
+		}
 		break;
+
+	
 
 	default:
 		staticF->printMsg(ERROR,true, "CORRUPT JSON PACKAGE , TYPE: %d", (int)root["TYPE"]);
@@ -221,8 +216,9 @@ bool ICACHE_FLASH_ATTR topology::sendMessage(uint32_t destId, meshPackageType ty
 //Send message if we have connection for target id.
 bool ICACHE_FLASH_ATTR topology::sendMessage(meshConnectionType *conn, uint32_t destId, meshPackageType type, String &msg) {
 	printMsg(COMMUNICATION, true, "SEND TO: %d, TYPE: %d, MSG: %s ", conn->chipId,(uint8_t)type, msg.c_str());
-	
+
 	String package = buildMeshPackage(destId, type, msg);
+
 	return sendPackage(conn, package);
 }
 
@@ -230,10 +226,10 @@ bool ICACHE_FLASH_ATTR topology::sendMessage(meshConnectionType *conn, uint32_t 
 bool ICACHE_FLASH_ATTR topology::broadcastMessage(uint32_t FROM, meshPackageType type, String &msg, meshConnectionType *exclude) {
 
 	if (exclude != NULL)
-		printMsg(COMMUNICATION,true, "BROADCAST: FROM= %d TYPE= %d, DATA= %s EXCLUDE= %d\n",
+		printMsg(COMMUNICATION,true, "BROADCAST: FROM= %d TYPE= %d, DATA= %s EXCLUDE= %d",
 			FROM, type, msg.c_str(), exclude->chipId);
 	else
-		printMsg(COMMUNICATION, true, "BROADCAST: FROM= %d TYPE= %d, DATA= %s EXCLUDE= NULL\n",
+		printMsg(COMMUNICATION, true, "BROADCAST: FROM= %d TYPE= %d, DATA= %s EXCLUDE= NULL",
 			FROM, type, msg.c_str());
 
 	//Scan connections.
@@ -244,18 +240,19 @@ bool ICACHE_FLASH_ATTR topology::broadcastMessage(uint32_t FROM, meshPackageType
 		}
 		connection++;
 	}
+	
 	return true; 
 }
 
 //Function for send package to node.
 bool ICACHE_FLASH_ATTR topology::sendPackage(meshConnectionType *connection, String &package) {
 	printMsg(COMMUNICATION, true,"SEND TO: %d, MSG: %s ", connection->chipId, package.c_str());
-
+	
 	if (package.length() > 1400)
 		printMsg(ERROR,true, "MSG SENDING FAILED, PACKAGE TOO LARGE: %d\n", package.length());
 
 	if (connection->sendReady == true) {
-
+	
 		//use espconn_send function for sending message with char array.
 		sint8 errCode = espconn_send(connection->esp_conn, (uint8*)package.c_str(), package.length());
 		connection->sendReady = false;
@@ -272,7 +269,7 @@ bool ICACHE_FLASH_ATTR topology::sendPackage(meshConnectionType *connection, Str
 		}
 	}
 	else {
-		connection->sendQueue.push_back(package);
+		connection->sendQueue.push_back(package);	
 	}
 }
 
@@ -286,7 +283,6 @@ String ICACHE_FLASH_ATTR topology::buildMeshPackage(uint32_t targetId, meshPacka
 	root["FROM"] = m_myChipID;
 	root["TYPE"] = (uint8_t)type;
 	root["MSG"] = msg;
-
 	switch (type) {
 	case NODE_SYNC_REQUEST:
 	case NODE_SYNC_REPLY:
@@ -295,12 +291,12 @@ String ICACHE_FLASH_ATTR topology::buildMeshPackage(uint32_t targetId, meshPacka
 		if (!subs.success()) {
 			printMsg(MESH_STATUS,true, "buildMeshPackage(): subs = jsonBuffer.parseArray( msg ) failed!");
 		}
-		root["subs"] = subs;
+		root["SUBS"] = subs;
 		break;
 	}
 
 	default:
-		root["msg"] = msg;
+		root["MSG"] = msg;
 	}
 
 	String ret;
@@ -314,12 +310,17 @@ bool ICACHE_FLASH_ATTR topology::sendSingle(uint32_t &targetID, String &message)
 	sendMessage(targetID, SINGLE, message);
 }
 
-//Send broadcast package for all nodes in mesh network.
+//Send broadcast Mesh package for all nodes in mesh network.
 bool ICACHE_FLASH_ATTR topology::sendBroadcast(String &message) {
 	printMsg(COMMUNICATION,true, "SENDING BROADCAST MESSAGE: %s", message.c_str());
 	broadcastMessage(m_myChipID, BROADCAST, message);
 }
 
+//Send broadcast MQTT package for all nodes in mesh network.
+bool ICACHE_FLASH_ATTR topology::broadcastMqttMessage(String &message) {
+	//printMsg(MQTT_STATUS, true, "SENDING M2M MESSAGE = %s", message.c_str());
+	broadcastMessage(m_myChipID, MQTT, message);
+}
 
 uint32_t ICACHE_FLASH_ATTR topology::getNodeTime(void) {
 	uint32_t ret = system_get_time();
@@ -365,7 +366,7 @@ void ICACHE_FLASH_ATTR topology::handleNodeSync(meshConnectionType *conn, JsonOb
 	}
 
 	// check to see if subs have changed.
-	String inComingSubs = root["subs"];
+	String inComingSubs = root["SUBS"];
 	if (!conn->subConnections.equals(inComingSubs)) {  // change in the network
 		reSyncAllSubConnections = true;
 		conn->subConnections = inComingSubs;
@@ -422,7 +423,7 @@ String ICACHE_FLASH_ATTR topology::subConnectionJson(meshConnectionType *exclude
 				if (!subs.success())
 					printMsg(ERROR,true, "subConnectionJson(): ran out of memory 3");
 
-				subObj["subs"] = subs;
+				subObj["SUBS"] = subs;
 			}
 
 			if (!subArray.add(subObj))
@@ -477,7 +478,7 @@ uint16_t ICACHE_FLASH_ATTR topology::jsonSubConnCount(String& subConns) {
 			printMsg(ERROR, true, "subConnCount(): out of memory2\n");
 		}
 
-		str = obj.get<String>("subs");
+		str = obj.get<String>("SUBS");
 		count += (1 + jsonSubConnCount(str));
 	}
 
@@ -516,18 +517,10 @@ void ICACHE_FLASH_ATTR topology::manageConnections(void) {
 		}
 
 
-		if (connection->newConnection == true) {  // we should only get here once first nodeSync and timeSync are complete
-
-			connection->newConnection = false;
-
-			connection++;
-			continue;
-		}
 
 		if (connection->newConnection == true) {  
 			newConnectionCallback(adoptionCalc(connection));
 			connection->newConnection = false;
-
 			connection++;
 			continue;
 		}
@@ -569,6 +562,12 @@ void ICACHE_FLASH_ATTR topology::setReceiveCallback(void(*onReceive)(uint32_t fr
 	printMsg(MESH_STATUS,true, "setReceiveCallback():\n");
 	receivedCallback = onReceive;
 }
+
+void ICACHE_FLASH_ATTR topology::setMQTTReceiveCallback(void(*onReceive)(uint32_t from, String &msg)) {
+	printMsg(MESH_STATUS, true, "setReceiveCallback():\n");
+	receivedCallback = onReceive;
+}
+
 
 //***********************************************************************
 void ICACHE_FLASH_ATTR topology::setNewConnectionCallback(void(*onNewConnection)(bool adopt)) {
