@@ -22,7 +22,7 @@ PubSubClient MQTTclient(EspTcpClient);
 #define MESH_PASSWORD  "1234567890"
 #define MESH_PORT   8888
 
-#define MQTT_PREFIX "Muhendis"
+#define MQTT_PREFIX "Muhendist"
 #define MQTT_PASSWORD "Murtiaxi133."
 #define MQTT_PORT   1883
 #define MQTT_SERVER "139.59.138.76"
@@ -84,10 +84,6 @@ void ICACHE_FLASH_ATTR newConnectionCallback(bool adopt) {
 
 void ICACHE_FLASH_ATTR pingCb(void *arg) {
 
-	if (sys.connectionCount(NULL) > 0) {
-		String ping_message = "Hello Nodes, I'm: " + String(sys.getMyID());
-		sys.sendBroadcast(ping_message);
-	}
 }
 
 
@@ -104,7 +100,7 @@ void ICACHE_FLASH_ATTR meshStatusCb(void *arg) {
 		digitalWrite(D7, HIGH);
 	}
 	else {
-		Serial.println("MQTT: DISCONNECTED STATUS: %d"); Serial.print(MQTTclient.state());
+		Serial.print("MQTT: DISCONNECTED STATUS: "); Serial.println(MQTTclient.state());
 		digitalWrite(D7, LOW);
 	}
 	//our node exclude

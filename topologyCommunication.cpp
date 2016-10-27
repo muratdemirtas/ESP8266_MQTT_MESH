@@ -107,7 +107,6 @@ void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned shor
 
 	switch ((meshPackageType)(int)root["TYPE"]) {
 
-
 	case NODE_SYNC_REQUEST:
 	case NODE_SYNC_REPLY:
 		staticF->handleNodeSync(receiveConn, root);
