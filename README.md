@@ -4,7 +4,9 @@ current status : developing. if you have any trouble for this , pls contact me o
 dependency libraries ( thanks to Coopdis)
 
 SimpleList *** Available here... https://github.com/blackhack/ArduLibraries/tree/master/SimpleList
+
 ArduinoJson *** Available here... https://github.com/bblanchon/ArduinoJson
+
 EasyWebsocket. *** Available here... https://github.com/Coopdis/easyWebSocket
 
 
