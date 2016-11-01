@@ -22,8 +22,7 @@ PubSubClient MQTTclient(EspTcpClient);
 #define MESH_PASSWORD  "1234567890"
 #define MESH_PORT   8888
 
-#define MQTT_PREFIX "Muhendist"
-#define MQTT_PASSWORD "Murtiaxi133."
+
 #define MQTT_PORT   1883
 #define MQTT_SERVER "139.59.138.76"
 
@@ -53,7 +52,7 @@ void setup() {
 	digitalWrite(D6, LOW);
 	digitalWrite(D7, LOW);
 
-	sys.setupMqtt(MQTT_PREFIX, MQTT_PASSWORD, MQTT_SERVER, MQTT_PORT);
+	sys.setupMqtt(MQTT_SERVER, MQTT_PORT);
 	sys.setupMesh(MESH_PREFIX, MESH_PASSWORD, MESH_PORT);
 
 	MQTTclient.setServer(MQTT_SERVER, MQTT_PORT);
@@ -90,9 +89,8 @@ void ICACHE_FLASH_ATTR pingCb(void *arg) {
 void ICACHE_FLASH_ATTR meshStatusCb(void *arg) {
 	int connCount = 0;
 
-	Serial.println("------------SYSTEM STATUS---------");
-	Serial.println("----------------------------------");
-	Serial.println("----------------------------------");
+	sys.printMsg(BOOT, true,"------------SYSTEM STATUS-----------");
+	sys.printMsg(BOOT, true, "MESH: MY CHIP ID: %d", sys.getMyID());
 	sys.printMsg(BOOT, true, "WIFI: STATION CONNECTED TO %s", sys.m_ConnectedSSID.c_str());
 
 	if (MQTTclient.connected()) {
@@ -108,12 +106,10 @@ void ICACHE_FLASH_ATTR meshStatusCb(void *arg) {
 
 	SimpleList<meshConnectionType>::iterator connection = sys.m_connections.begin();
 	while (connection != sys.m_connections.end()) {
-		sys.printMsg(BOOT, 1, "\tMESH: Connected: #%d", connection->chipId);
+		sys.printMsg(BOOT, true, "\tMESH: Connected: #%d", connection->chipId);
 		connCount++; connection++;
 	}
 
-	Serial.println("---------------------------------");
-	Serial.println("---------------------------------");
 }
 
 

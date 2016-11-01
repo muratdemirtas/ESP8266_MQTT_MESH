@@ -22,6 +22,8 @@ void ICACHE_FLASH_ATTR	topology::startDynamic(void) {
 	os_timer_setfn(&staticF->m_searchTimer, DynamicRssi, NULL);
 	os_timer_arm(&staticF->m_searchTimer, SEARCHTM_INTERVAL, 1);
 	printMsg(OS, true, "Operating System Dynamic ISR():: SCAN AP NETWORKS STARTED.");
+
+	m_ISR_CHECK = true;
 }
 
 //Select best access point( maybe mesh, maybe mqtt network) 
@@ -29,7 +31,6 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 	
 	// drop any _meshAP's we are already connected to
 	SimpleList<bss_info>::iterator mesh_ap = m_meshAPs.begin();
-	SimpleList<bss_info>::iterator mqtt_ap = m_mqttAPs.begin();
 	while (mesh_ap != m_meshAPs.end()) {
 		String apChipId = (char*)mesh_ap->ssid + m_meshPrefix.length();
 
@@ -42,58 +43,14 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 		}
 	}
 
-	while (mqtt_ap != m_mqttAPs.end()) {
-		String apChipId = (char*)mqtt_ap->ssid + m_mqttPrefix.length();
-
-		if (findConnection(apChipId.toInt()) != NULL) {
-			mqtt_ap = m_mqttAPs.erase(mqtt_ap);
-		}
-		else {
-			mqtt_ap++;
-
-		}
-	}
-
 	uint8 statusCode = wifi_station_get_connect_status();
 	
 	if (statusCode != STATION_IDLE) {
 		if (statusCode == STATION_GOT_IP) {
-			printMsg(ERROR, true, "WIFI: STATION ALREADY CONNECTED TO BEST AP");
+			printMsg(ERROR, true, "WIFI: STATION ALREADY CONNECTED TO BEST AP %s",m_ConnectedSSID.c_str());
 		}
 		printMsg(ERROR, true, "WIFI: STATION NOT IDLE: %d ", statusCode);
 		return false;
-	}
-
-	if (!(staticF->m_mqttAPs.empty())) {
-
-		SimpleList<bss_info>::iterator best_mqttAP = staticF->m_mqttAPs.begin();
-		SimpleList<bss_info>::iterator i = staticF->m_mqttAPs.begin();
-		while (i != staticF->m_mqttAPs.end()) {
-			if (i->rssi > best_mqttAP->rssi) {
-				best_mqttAP = i;
-			}
-			++i;
-		}
-
-		if (best_mqttAP->rssi > -70) {
-
-			printMsg(SCAN,true, "SCAN : CONNECTING TO BEST MQTT AP , %s SIGNAL IS STRONG  : %dm ", (char*)best_mqttAP->ssid, best_mqttAP->rssi);
-			struct station_config stationConf;
-			stationConf.bssid_set = 0;
-			memcpy(&stationConf.ssid, best_mqttAP->ssid, 32);
-			memcpy(&stationConf.password, m_mqttPassword.c_str(), 64);
-			wifi_station_set_config(&stationConf);
-			wifi_station_connect();
-	
-			m_ConnectedSSID = (char*)best_mqttAP->ssid;
-			m_mqttAPs.erase(best_mqttAP);
-			m_networkType = FOUND_MQTT;
-			return true;
-		}
-		else if (best_mqttAP->rssi < -80) {
-			printMsg(SCAN, true, "SCAN: BEST MQTT AP SIGNAL IS WEAK: %d dB", best_mqttAP->rssi );
-			printMsg(SCAN, true, "SCAN: CONNECTING TO BEST MESH NETWORK.");
-		}
 	}
 
 	if (staticF->m_meshAPs.empty() ) {  
@@ -121,5 +78,4 @@ bool ICACHE_FLASH_ATTR topology::connectToBestAp(void) {
 		m_networkType = FOUND_MESH;
 		m_meshAPs.erase(best_meshAP);   
 		return true;
-
 }

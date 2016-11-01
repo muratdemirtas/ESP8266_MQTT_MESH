@@ -24,7 +24,6 @@ void ICACHE_FLASH_ATTR topology::startScanAps(void) {
 	}
 
 	return;
-
 }
 
 //Scan finished and all arguments coming from wifi_station_scan function.
@@ -35,19 +34,15 @@ void ICACHE_FLASH_ATTR topology::scanApsCallback(void *arg, STATUS status) {
 
 	//Erase all last scanned AP's from ESP8266 memory.
 	staticF->m_meshAPs.clear();
-	staticF->m_mqttAPs.clear();
 
 	staticF->printMsg(SCAN, true, "WIFI: Scan Finished, Access Points:");
 
 	char ssid[32]; 
 	bss_info  *bssInfo = (bss_info *)arg;   //all *arg registered to bssinfo simple list
-
 											//Same with serial.println();
 	staticF->printMsg(SCAN, true, "");
-
 	staticF->printMsg(SCAN, true, "-----------WIFI SCAN INTERRUPT HAS BEGIN-------------");
 	staticF->printMsg(SCAN, true, "-----------------------------------------------------");
-
 
 	//Print all scanned Access Points from list to serial.
 	while (bssInfo != NULL) {
@@ -56,17 +51,9 @@ void ICACHE_FLASH_ATTR topology::scanApsCallback(void *arg, STATUS status) {
 		if(staticF->m_ISR_CHECK==false)
 		staticF->printMsg(SCAN, true, "SSID: %s, RSSI: %d dB, MAC: %s ", (char*)bssInfo->ssid, (int16_t)bssInfo->rssi, mactostr(bssInfo->bssid).c_str());
 
-
-
-
 		//Find all mesh networks if equal to prefixs and add to simple list.
 		if (strncmp((char*)bssInfo->ssid, staticF->m_meshPrefix.c_str(), staticF->m_meshPrefix.length()) == 0) {
 			staticF->m_meshAPs.push_back(*bssInfo);
-		}
-
-		//Find all mesh networks if equal to prefixs and add to simple list.
-		if (strncmp((char*)bssInfo->ssid, staticF->m_mqttPrefix.c_str(), staticF->m_mqttPrefix.length()) == 0) {
-			staticF->m_mqttAPs.push_back(*bssInfo);
 		}
 
 		//Continue to other AP's
@@ -81,9 +68,9 @@ void ICACHE_FLASH_ATTR topology::scanApsCallback(void *arg, STATUS status) {
 
 	///Print all infos about networks
 	staticF->printMsg(SCAN,true,  "Found Total: %d MESH AP with Prefix = %s", staticF->m_meshAPs.size(), staticF->m_meshPrefix.c_str());
-	staticF->printMsg(SCAN, true, "Found Total: %d MQTT AP with Prefix = %s", staticF->m_mqttAPs.size(), staticF->m_mqttPrefix.c_str());
-
+	
 	//Compute best Access point
+	staticF->m_ISR_CHECK == false;
 	staticF->connectToBestAp();
 }
 
@@ -122,12 +109,7 @@ void ICACHE_FLASH_ATTR topology::wifiEventCb(System_Event_t *event) {
 		break;
 	case EVENT_STAMODE_GOT_IP:
 		staticF->printMsg(OS, true, "Operating Sys: WIFI STATION GOT IP.");
-		if (staticF->m_networkType == FOUND_MESH) {
-			staticF->m_mqttStatus = false;
 			staticF->connectTcpServer();
-		}
-		else if (staticF->m_networkType == FOUND_MQTT)
-			staticF->m_mqttStatus = true;
 		break;
 
 	case EVENT_SOFTAPMODE_STACONNECTED:

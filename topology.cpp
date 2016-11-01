@@ -10,6 +10,7 @@ static void(*newConnectionCallback)(bool adopt);
 
 //Start topology system
 void ICACHE_FLASH_ATTR topology::startSys(void) {
+
 	wifi_station_set_auto_connect(0);
 	staticF = this; 
 	wifi_station_disconnect();
@@ -21,12 +22,8 @@ void ICACHE_FLASH_ATTR topology::startSys(void) {
 		wifi_station_disconnect();
 	}
 
-	
-	
-
 	//Wifi Station mode.
 	wifi_set_opmode_current(0x03);
-
 
 	wifi_set_event_handler_cb(wifiEventCb);
 	m_myChipID = system_get_chip_id();        //Set chip id to our variable.
@@ -36,14 +33,12 @@ void ICACHE_FLASH_ATTR topology::startSys(void) {
 }
 
 //Setup configs for Mqtt Access Points
-void ICACHE_FLASH_ATTR topology::setupMqtt(String mqttPrefix, String mqttPassword, char* mqtt_server, uint16_t mqtt_port) {
+void ICACHE_FLASH_ATTR topology::setupMqtt(char* mqtt_server, uint16_t mqtt_port) {
 
-	m_mqttPrefix = mqttPrefix;
-	m_mqttPassword = mqttPassword;
 	m_mqttPort = mqtt_port;
 	m_mqttServer = mqtt_server;
 
-	printMsg(MQTT_STATUS, true, "SETTING UP MQTT CONFIG, PREFIX:%s, PASSWORD:%s, Server:%s, PORT:%d", mqttPrefix.c_str(), mqttPassword.c_str(), mqtt_server, mqtt_port);
+	printMsg(MQTT_STATUS, true, "SETTING UP MQTT CONFIG, Server:%s, PORT:%d", mqtt_server, mqtt_port);
 	
 }
 

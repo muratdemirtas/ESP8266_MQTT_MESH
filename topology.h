@@ -9,7 +9,6 @@
 	#include "WProgram.h"
 #endif
 
-
 //Extract Espressif methods for our class.
 extern "C" {
 #include "user_interface.h"
@@ -21,9 +20,9 @@ extern "C" {
 #include <ArduinoJson.h>
 
 //our dynamic system timer interval 
-#define SEARCHTM_INTERVAL 10000  //10 second
+#define SEARCHTM_INTERVAL 30000  //10 second
 
-#define JSON_BUFSIZE      500    //Json buffer size.
+#define JSON_BUFSIZE        500    //Json buffer size.
 #define NODE_TIMEOUT        3000000 //3 second(uSecs)
 
 //Define debug types for serial debugging.
@@ -76,7 +75,7 @@ struct meshConnectionType {
 	espconn             *esp_conn;
 	uint32_t            chipId = 0;
 	String              subConnections;
-	uint32_t            lastRecieved = 0;
+	bool                lastRecieved = false;
 	bool                newConnection = true;
 	uint32_t            nodeSyncRequest = 0;
 	uint32_t            lastTimeSync = 0;
@@ -90,7 +89,7 @@ class topology
 {
 public:
 
-	void setupMqtt(String mqttPrefix, String mqttPassword, char* mqtt_server, uint16_t mqtt_port);
+	void setupMqtt( char* mqtt_server, uint16_t mqtt_port);
 	void setupMesh(String meshPrefix, String meshPassword, uint16_t mesh_port);
 	void setDebug(uint16_t types);
 	void printMsg(debugTypes type, bool		newline,const char* format ...);
@@ -105,11 +104,10 @@ public:
 
 	void			manageConnections(void);
 	void			StartAccessPoint(void);
-	uint32_t		getNodeTime(void);
+	
 	uint8_t*		staMacAddress(uint8* mac);
 	uint8_t*		softAPmacAddress(uint8* mac);
 	void			connectTcpServer(void);
-
 
 	uint16_t            connectionCount(meshConnectionType *exclude = NULL);
 	bool                sendSingle(uint32_t &targetID, String &message);
@@ -130,10 +128,10 @@ public:
 	static void			searchTimerCallback(void *arg);
 	meshConnectionType* findConnection(uint32_t chipId);
 	uint32_t			getMyID(void);
-	void setMQTTReceiveCallback(void(*onReceive)(uint32_t from, String &msg));
+	void				setMQTTReceiveCallback(void(*onReceive)(uint32_t from, String &msg));
 	bool				broadcastMqttMessage(String &message);
+
 	SimpleList<meshConnectionType>  m_connections;
-	SimpleList<bss_info>            m_mqttAPs;
 	SimpleList<bss_info>            m_meshAPs;
 	os_timer_t						m_searchTimer;
 	networkType						m_networkType = NOTHING;
@@ -145,13 +143,11 @@ public:
 	espconn     m_stationConn;
 	esp_tcp     m_stationTcp;
 	String		m_ConnectedSSID = "";
-	String		m_mqttPrefix;
-	String		m_mqttPassword;
 	char*		m_mqttServer;
 	uint16_t	m_mqttPort;
 	bool		m_ISR_CHECK = false;
+	bool		m_mqttStatus = false;
 
-	bool m_mqttStatus = false;
 protected :
 
 	bool                sendMessage(meshConnectionType *conn, uint32_t destId, meshPackageType type, String &msg);
@@ -161,7 +157,7 @@ protected :
 	bool				sendPackage(meshConnectionType *connection, String &package);
 	String			    buildMeshPackage(uint32_t destId, meshPackageType type, String &msg);
 
-	void    tcpServerInit(espconn &serverConn, esp_tcp &serverTcp, espconn_connect_callback connectCb, uint32 port);
+	void				tcpServerInit(espconn &serverConn, esp_tcp &serverTcp, espconn_connect_callback connectCb, uint32 port);
 	
 	meshConnectionType* findConnection(espconn *conn);
 
@@ -171,13 +167,11 @@ protected :
 	static void meshDisconCb(void *arg);
 	static void meshReconCb(void *arg, sint8 err);
 
-
 	void        startNodeSync(meshConnectionType *conn);
 	void        handleNodeSync(meshConnectionType *conn, JsonObject& root);
 
 private:
 
-	bool m_fotaStatus;
 	String		m_meshPrefix;
 	String		m_meshPassword;
 	uint16_t	m_meshPort;
@@ -189,6 +183,8 @@ private:
 
 	uint32_t    m_myChipID;
 	String		m_mySSID;
+
+	bool m_fotaStatus;
 
 };
 #endif

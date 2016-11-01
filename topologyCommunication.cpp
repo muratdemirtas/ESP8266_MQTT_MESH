@@ -65,7 +65,7 @@ void ICACHE_FLASH_ATTR topology::meshConnectedCb(void *arg) {
 	meshConnectionType newConn;
 	newConn.esp_conn = (espconn *)arg;
 	espconn_set_opt(newConn.esp_conn, ESPCONN_NODELAY); 
-	newConn.lastRecieved = staticF->getNodeTime();
+	newConn.lastRecieved = true;
 
 	espconn_regist_recvcb(newConn.esp_conn, meshRecvCb);
 	espconn_regist_sentcb(newConn.esp_conn, meshSentCb);
@@ -136,7 +136,7 @@ void ICACHE_FLASH_ATTR topology::meshRecvCb(void *arg, char *data, unsigned shor
 		staticF->printMsg(ERROR,true, "CORRUPT JSON PACKAGE , TYPE: %d", (int)root["TYPE"]);
 		return;
 	}
-	receiveConn->lastRecieved = staticF->getNodeTime();
+	receiveConn->lastRecieved = true;
 	return;
 }
 
@@ -321,16 +321,13 @@ bool ICACHE_FLASH_ATTR topology::broadcastMqttMessage(String &message) {
 	broadcastMessage(m_myChipID, MQTT, message);
 }
 
-uint32_t ICACHE_FLASH_ATTR topology::getNodeTime(void) {
-	uint32_t ret = system_get_time();
-	return ret;
-}
+
 
 void ICACHE_FLASH_ATTR topology::startNodeSync(meshConnectionType *conn) {
 	printMsg(SYNC,true,"SYNC: Starting NodeSync With: %d", conn->chipId);
 	String subs = subConnectionJson(conn);
 	sendMessage(conn, conn->chipId, NODE_SYNC_REQUEST, subs);
-	conn->nodeSyncRequest = getNodeTime();
+	conn->nodeSyncRequest = true;
 	conn->nodeSyncStatus = IN_PROGRESS;
 }
 
@@ -491,8 +488,8 @@ void ICACHE_FLASH_ATTR topology::manageConnections(void) {
 	//printMsg(APP, true, "manageConnections():\n");
 	SimpleList<meshConnectionType>::iterator connection = m_connections.begin();
 	while (connection != m_connections.end()) {
-		if (connection->lastRecieved + NODE_TIMEOUT < getNodeTime()) {
-			printMsg(CONNECTION, true, "manageConnections(): dropping %d NODE_TIMEOUT last=%u node=%u\n", connection->chipId, connection->lastRecieved, getNodeTime());
+		if (connection->lastRecieved == false) {
+			printMsg(CONNECTION, true, "manageConnections(): dropping %d NODE_TIMEOUT  \n", connection->chipId);
 
 			connection = closeConnection(connection);
 			continue;
@@ -525,18 +522,8 @@ void ICACHE_FLASH_ATTR topology::manageConnections(void) {
 		}
 
 
-		uint32_t nodeTime = getNodeTime();
 		if (connection->nodeSyncRequest == 0) { // nodeSync not in progress
-			if ((connection->esp_conn->proto.tcp->local_port == m_meshPort  // we are AP
-				&&
-				connection->lastRecieved + (NODE_TIMEOUT / 2) < nodeTime)
-				||
-				(connection->esp_conn->proto.tcp->local_port != m_meshPort  // we are the STA
-					&&
-					connection->lastRecieved + (NODE_TIMEOUT * 3 / 4) < nodeTime)
-				) {
 				connection->nodeSyncStatus = NEEDED;
-			}
 		}
 		connection++;
 	}
