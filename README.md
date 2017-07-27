@@ -14,4 +14,4 @@ MQTT Client. *** Available here... https://github.com/knolleary/pubsubclient
 
 ![alt tag](http://i.hizliresim.com/Xdmvg5.png)
 
-![alt tag](http://image-store.slidesharecdn.com/ced6a62b-3944-4418-9071-0ee33c5ccdd6-original.png)
+
